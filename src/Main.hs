@@ -5,29 +5,35 @@ import System.Exit        ( exitFailure )
 import System.IO          ( hPutStrLn, stderr )
 import Control.Monad      ( when )
 
-import AbsHawat   ()
+import AbsHawat   ( Program )
 import LexHawat   ( Token )
 import ParHawat   ( pProgram, myLexer )
 import SkelHawat  ()
 
+import Typechecker 
+
 type Err        = Either String
-type ParseFun a = [Token] -> Err a
+type ParseFun = [Token] -> Err Program
 
 
-runFile :: (Show a) => ParseFun a -> FilePath -> IO ()
+runFile :: ParseFun -> FilePath -> IO ()
 runFile p f = readFile f >>= run p
 
 pareseErrorStr = "Parse Failed\n"
 
-run :: (Show a) => ParseFun a -> String -> IO ()
+run :: ParseFun -> String -> IO ()
 run p s =
-  case p ts of
-    Left err -> do
-      hPutStrLn stderr pareseErrorStr
-      hPutStrLn stderr err
-      exitFailure
-    Right tree -> do
-      putStrLn "Parse Successful!" -- TODO Remove, add typecheck and interpreter
+    case p ts of
+        Left err -> do
+            hPutStrLn stderr pareseErrorStr
+            hPutStrLn stderr err
+            exitFailure
+        Right programTree -> do -- add prints
+            case typecheckProgram programTree of
+                Just err ->
+                    do putStrLn (show err)
+                Nothing -> do 
+                    putStrLn "Interpreter"
   where
   ts = myLexer s
 

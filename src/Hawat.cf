@@ -60,9 +60,11 @@ While.     Stmt ::= "while" "(" Expr ")" Block ;
 
 For.       Stmt ::= "for" "(" Arg "=" Expr "to" Expr ")" Block ;
 
-Break.     Stmt ::= "break" ";" ;
+Break.     LoopS ::= "break" ";" ;
 
-Cont.      Stmt ::= "continue" ";" ;
+Cont.      LoopS ::= "continue" ";" ;
+
+LoopJmp.   Stmt ::= LoopS ;
 
 SExp.      Stmt ::= Expr  ";" ;
 
@@ -91,6 +93,8 @@ ELitInt.   Expr6 ::= Integer ;
 ELitTrue.  Expr6 ::= "true" ;
 
 ELitFalse. Expr6 ::= "false" ;
+
+EVoid.     Expr6 ::= "(v)" ;
 
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
