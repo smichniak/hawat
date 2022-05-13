@@ -58,7 +58,7 @@ SCond.     Stmt ::= Cond ;
 
 While.     Stmt ::= "while" "(" Expr ")" Block ;
 
-For.       Stmt ::= "for" "(" Arg "=" Expr "to" Expr ")" Block ;
+For.       Stmt ::= "for" "(" Ident "=" Expr "to" Expr ")" Block ;
 
 Break.     LoopS ::= "break" ";" ;
 
@@ -104,7 +104,7 @@ EArray.    Expr6 ::= "[" [Expr] "]" ;
 
 EString.   Expr6 ::= String ;
 
-ELambda.   Expr6 ::= "lambda(" [Arg] ")" "->" Block ;
+ELambda.   Expr6 ::= "lambda(" [Arg] ")" "->" Type Block ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
