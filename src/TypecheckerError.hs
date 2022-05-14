@@ -7,10 +7,13 @@ import LexHawat ( printPosn, Posn( Pn ) )
 -- TODO check all errors are used
 data TypeErrors = TEBreak                       | -- Break not in a loop
                   TEContinue                    | -- Continue not in a loop
+                  TEAssignExp                   | -- Continue not in a loop
                   TEArrIndex Type               | -- Array indexed not by an int
                   TECondtion Type               | -- Condtion not a bool
                   TEForIter Type                | -- For iterator is not an int
                   TEUnaryOp Type                | -- Type not supported for unary operation
+                  TENotFunction Type            | -- Application to a non-function ident
+                  TENotArray Type               | -- Not an array indexed
                   TEReturn Type Type            | -- Wrong return type (returned, expected)
                   TEAssignment Type Type        | -- Wrong type assigneed (lvalue, rvalue)
                   TEApplication [Type] [Type]   | -- Wrong function application (applied, expected)
@@ -18,9 +21,8 @@ data TypeErrors = TEBreak                       | -- Break not in a loop
                   TEArrayType Type Type         | -- Two different types in array construction
                   TEUndeclared Ident            | -- Undeclared variable
                   TERedeclaration Ident         | -- Redeclartion of a variable
-                  TEReadOnly Ident              | -- Modification of read-only variable (usually in a for loop)
-                  TENotFunction Ident           | -- Application to a non-function ident
-                  TENotArray Ident                -- Not an array indexed
+                  TEReadOnly Ident                -- Modification of read-only variable (usually in a for loop)
+                  
 
 
 data TypeError = TE {position :: BNFC'Position, error :: TypeErrors}
@@ -38,6 +40,7 @@ showNot t = showString ", not " . showType t
 instance Show TypeErrors where
     showsPrec _ TEBreak                 = showString "'break' outside loop"
     showsPrec _ TEContinue              = showString "'continue' outside loop"
+    showsPrec _ TEAssignExp             = showString "Cannot assign to expression"
     showsPrec _ (TEArrIndex t)          = showString "Array index must be " . showInt . showNot t
     showsPrec _ (TECondtion t)          = showString "Condition must be " . showBool . showNot t
     showsPrec _ (TEForIter t)           = showString "For loop iterator must be " . showInt . showNot t

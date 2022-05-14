@@ -34,15 +34,11 @@ BStmt.     Stmt ::= Block ;
 
 SDecl.     Stmt ::= Decl;
 
-MutL.      Mut ::= Ident ;
+Ass.       Stmt ::= Expr "=" Expr ";" ;
 
-MutArr.    Mut ::= Ident "[" Expr "]" ;
+Incr.      Stmt ::= Expr "++" ";" ;
 
-Ass.       Stmt ::= Mut "=" Expr  ";" ;
-
-Incr.      Stmt ::= Mut "++"  ";" ;
-
-Decr.      Stmt ::= Mut "--"  ";" ;
+Decr.      Stmt ::= Expr "--" ";" ;
 
 Ret.       Stmt ::= "return" Expr ";" ;
 
@@ -96,9 +92,9 @@ ELitFalse. Expr6 ::= "false" ;
 
 EVoid.     Expr6 ::= "(v)" ;
 
-EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
+EApp.      Expr6 ::= Expr6 "(" [Expr] ")" ;
 
-EGet.      Expr6 ::= Ident "[" Expr "]" ;
+EGet.      Expr6 ::= Expr6 "[" Expr "]" ;
 
 EArray.    Expr6 ::= "[" [Expr] "]" ;
 

@@ -38,11 +38,11 @@ typecheckDecl (DeclL declPos typ ((NoInit _ ident) : xs)) = do
 
 typecheckDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) = do
     newEnv <- declare ident typ
-    local (const newEnv) (typecheckStmt (Ass initPos (MutL initPos ident) expr))
+    local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr))
     local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)
 
 getArgType :: Arg -> Type
-getArgType (ArgL argPos typ ident) = typ
+getArgType (ArgL _ typ _) = typ
 
 functionType :: BNFC'Position -> [Arg] -> Type -> Type
 functionType pos argList returnType = Fun pos (map getArgType argList) returnType
@@ -67,17 +67,27 @@ typecheckStmt (BStmt _ block) = do
     local (addLevel . const env) (typecheckBlock block)
     ask
 typecheckStmt (SDecl _ decl) = typecheckDecl decl
-typecheckStmt (Ass pos mut expr) = do
-    mutType <- typecheckMut mut
+
+typecheckStmt (Ass pos (EVar varPos ident) expr) = do
+    checkReadOnly varPos ident
     exprType <- typecheckExpr expr
-    unless (compareTypes mutType exprType) (throwError $ makeError expr (TEAssignment mutType exprType))
+    lType <- getType varPos ident
+    unless (compareTypes lType exprType) (throwError $ makeError expr (TEAssignment lType exprType))
     ask
-typecheckStmt (Incr pos mut) = do
-    mutType <- typecheckMut mut
-    case mutType of
-        Int _ -> ask
+typecheckStmt (Ass pos (EGet arrPos arrExpr indexExpr) expr) = do
+    exprType <- typecheckExpr expr
+    arrType <- typecheckExpr (EGet arrPos arrExpr indexExpr)
+    unless (compareTypes arrType exprType) (throwError $ makeError expr (TEAssignment arrType exprType))
+    ask
+typecheckStmt (Ass pos _ _) = throwError $ TE pos TEAssignExp
+
+typecheckStmt (Incr pos expr) = do
+    exprType <- typecheckExpr expr
+    case exprType of
+        Int _ -> typecheckStmt (Ass pos expr (ELitInt pos 0)) -- 0 only a placeholder, ignored later
         t -> throwError $ TE pos (TEUnaryOp t)
-typecheckStmt (Decr pos mut) = typecheckStmt (Incr pos mut)
+typecheckStmt (Decr pos expr) = typecheckStmt (Incr pos expr)
+
 typecheckStmt (Ret _ returnExpr) = do
     env <- ask
     let expectedType = tceReturnType env
@@ -125,24 +135,24 @@ typecheckExpr (ELitInt pos _) = do return $ Int pos
 typecheckExpr (ELitTrue pos) = do return $ Bool pos
 typecheckExpr (ELitFalse pos) = do return $ Bool pos
 typecheckExpr (EVoid pos) = do return $ Void pos
-typecheckExpr (EApp pos ident exprList) = do
+typecheckExpr (EApp pos funExpr exprList) = do
     appliedTypes <- sequence $ map typecheckExpr exprList
-    funType <- getType pos ident
+    funType <- typecheckExpr funExpr
     case funType of 
         Fun funPos argumentList returnType ->
             case and $ (length appliedTypes == length argumentList) : zipWith compareTypes appliedTypes argumentList of -- TODO Use compare tyes on functions, change to unless
                 False ->  throwError $ TE pos (TEApplication appliedTypes argumentList)
                 True -> return returnType
-        _ -> throwError $ TE pos (TENotFunction ident)
+        _ -> throwError $ makeError funExpr (TENotFunction funType)
 
-typecheckExpr (EGet pos ident indexExpr) = do
-    containerType <- getType pos ident
+typecheckExpr (EGet pos arrExpr indexExpr) = do
+    containerType <- typecheckExpr arrExpr
     indexType <- typecheckExpr indexExpr
     case containerType of
         Arr _ arrType -> case indexType of
             Int _ -> return arrType
             typ -> throwError $ TE pos (TEArrIndex typ)
-        _ -> throwError $ TE pos (TENotArray ident)
+        _ -> throwError $ makeError arrExpr (TENotArray containerType)
 
 typecheckExpr (EString pos _) = do return $ Str pos
 typecheckExpr (ELambda pos argList returnType block) = do
@@ -187,12 +197,6 @@ binaryCheck pos expr1 expr2 allowedTypes = do
         if isArray exprType2 then return exprType2 else return exprType1
     else
         throwError $ TE pos (TEBinaryOp exprType1 exprType2)
-
-typecheckMut :: Mut -> TCM Type
-typecheckMut (MutL pos ident) = do
-    checkReadOnly pos ident
-    getType pos ident
-typecheckMut (MutArr pos ident indexExpr) = typecheckExpr (EGet pos ident indexExpr)
 
 deriving instance Typeable (Type' a)
 deriving instance Data a => Data (Type' a)
