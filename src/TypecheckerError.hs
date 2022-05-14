@@ -4,7 +4,7 @@ import AbsHawat ( Type, Ident, BNFC'Position, Type'(Int, Bool), Stmt, HasPositio
 import PrintHawat ( prt, render, concatS, Print )
 import LexHawat ( printPosn, Posn( Pn ) )
 
-
+-- TODO check all errors are used
 data TypeErrors = TEBreak                       | -- Break not in a loop
                   TEContinue                    | -- Continue not in a loop
                   TEArrIndex Type               | -- Array indexed not by an int

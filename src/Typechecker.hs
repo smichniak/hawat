@@ -204,7 +204,8 @@ compareTypes (Fun _ argList1 returnType1) (Fun _ argList2 returnType2) =
 compareTypes t1 t2 = toConstr t1 == toConstr t2
 
 isArray :: Type -> Bool
-isArray t = or $ map (compareTypes t) arrays
+isArray (Arr _ _) = True
+isArray _ = False
 
 int = Int Nothing
 bool = Bool Nothing

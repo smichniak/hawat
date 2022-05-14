@@ -23,19 +23,15 @@ pareseErrorStr = "Parse Failed\n"
 
 run :: ParseFun -> String -> IO ()
 run p s =
-    case p ts of
+    case p $ myLexer s of
         Left err -> do
             hPutStrLn stderr pareseErrorStr
             hPutStrLn stderr err
-            exitFailure
-        Right programTree -> do -- add prints
-            case typecheckProgram programTree of
-                Just err ->
-                    do putStrLn (show err)
-                Nothing -> do 
-                    putStrLn "Interpreter"
-  where
-  ts = myLexer s
+            exitFailure 
+        Right programTree -> 
+            case typecheckProgram programTree of -- add prints
+                Just err -> putStrLn (show err)
+                Nothing -> putStrLn "Interpreter"
 
 usage :: IO ()
 usage = do
