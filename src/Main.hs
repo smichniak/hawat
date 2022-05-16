@@ -10,7 +10,8 @@ import LexHawat   ( Token )
 import ParHawat   ( pProgram, myLexer )
 import SkelHawat  ()
 
-import Typechecker 
+import Typechecker
+import Interpreter 
 
 type Err        = Either String
 type ParseFun = [Token] -> Err Program
@@ -31,7 +32,9 @@ run p s =
         Right programTree -> 
             case typecheckProgram programTree of -- add prints
                 Just err -> putStrLn (show err)
-                Nothing -> putStrLn "Interpreter"
+                Nothing -> case interpretProgram programTree of
+                    Left interpreterErr -> putStrLn (show interpreterErr)
+                    Right st -> putStrLn (show st) 
 
 usage :: IO ()
 usage = do
@@ -50,3 +53,9 @@ main = do
     ["--help"] -> usage
     []         -> getContents >>= run pProgram
     fs         -> mapM_ (runFile pProgram) fs
+
+
+-- TODO Move to utils?
+fromEither :: Either a a -> a
+fromEither (Left x) = x
+fromEither (Right x) = x

@@ -29,7 +29,7 @@ type TCM a = ExceptT TypeError (Reader TypecheckEnv) a
 
 getType :: BNFC'Position -> Ident -> TCM Type
 getType pos ident = do
-    (TCEnv typeEnv readEnv l loop ret) <- ask
+    typeEnv <- asks tceTypeEnv
     case Map.lookup ident typeEnv of
         Nothing -> throwError $ TE pos (TEUndeclared ident) -- TODO add correct position, maybe add another argument, expression the varaible uses
         Just (t, _) -> return t
@@ -52,17 +52,15 @@ getLoopError :: LoopS -> TypeErrors
 getLoopError (Break _) = TEBreak
 getLoopError (Cont _) = TEContinue
 
-checkInLoop :: LoopS -> TCM TypecheckEnv
+checkInLoop :: LoopS -> TCM ()
 checkInLoop s = do
-    env <- ask
-    unless (tceInLoop env) (throwError $ makeError s (getLoopError s))
-    return env
+    inLoop <- asks tceInLoop
+    unless inLoop (throwError $ makeError s (getLoopError s))
 
-checkReadOnly :: BNFC'Position -> Ident -> TCM TypecheckEnv
+checkReadOnly :: BNFC'Position -> Ident -> TCM ()
 checkReadOnly pos ident = do
-    env <- ask
-    when (Set.member ident (tceReadOnly env)) (throwError $ TE pos (TEReadOnly ident))
-    return env
+    readOnlySet <- asks tceReadOnly
+    when (Set.member ident readOnlySet) (throwError $ TE pos (TEReadOnly ident))
    
 
 addReadOnly :: Ident -> TypecheckEnv -> TypecheckEnv
