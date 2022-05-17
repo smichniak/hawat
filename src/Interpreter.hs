@@ -11,7 +11,7 @@ import InterpreterEnv
 import InterpreterError
 
 interpretProgram :: Program -> Either InterpreterError Ans
-interpretProgram (ProgramL _ topDefList) = (runReader $ runExceptT $ interpretTopDefProgram topDefList) initIEnv
+interpretProgram (ProgramL _ topDefList) = evalState ((runReaderT $ runExceptT $ interpretTopDefProgram topDefList) initIEnv) initStore
 --interpretProgram (ProgramL _ topDefList) = (runCont (runReaderT (runExceptT (interpretTopDefs topDefList)) initIEnv)) id
 
 
@@ -19,76 +19,111 @@ interpretProgram (ProgramL _ topDefList) = (runReader $ runExceptT $ interpretTo
 callMain = Global BNFC'NoPosition (DeclL Nothing (Int Nothing) [Init Nothing (Ident "") (EApp Nothing (EVar Nothing (Ident "main")) [])])
 
 interpretTopDefProgram :: [TopDef] -> IM Ans
-interpretTopDefProgram defs = evalTopDefs (defs) emptyCont initStore
-   -- finalCont <- evalTopDefs (defs ++ [callMain]) emptyCont
- --   finalAns <- 
-    
-  --  return finalAns 
-
+interpretTopDefProgram defs = do
+    finalCont <- evalTopDefs (defs) emptyCont -- TODO Restore: evalTopDefs (defs ++ [callMain]) emptyCont
+    get
+    --return store
+ --   return $ finalCont store
  --   throwError $ IE Nothing IEDivZero
 
 
-evalTopDefs :: [TopDef] -> Cont -> Store -> IM Ans
-evalTopDefs [] cont store = return $ cont store
-evalTopDefs (def : restDefs) cont store = do
-    let envCont = \newEnv newStore -> local (const newEnv) (evalTopDefs restDefs cont newStore)
-    finalAns <- evalTopDef def envCont store
-    return finalAns
+evalTopDefs :: [TopDef] -> Cont -> IM Cont
+evalTopDefs [] cont = return cont
+  --  do
+  --  store <- get
+  --  return $ cont store
 
-evalTopDef :: TopDef -> (InterpreterEnv -> Store -> IM Ans) -> Store -> IM Ans
-evalTopDef (Global _ decl) envCont s = evalDecl decl envCont s
---evalTopDef (FnDef pos ident argList returnType block) cont = typecheckFunction pos ident argList returnType block cont
-evalTopDef (FnDef pos ident argList returnType block) envCont s = do
+evalTopDefs (def : restDefs) cont = do
+    let envCont = \newEnv -> local (const newEnv) (evalTopDefs restDefs cont)
+    evalTopDef def envCont
+    --return newCont
+
+evalTopDef :: TopDef -> ContEnv -> IM Cont
+evalTopDef (Global _ decl) envCont = evalDecl decl envCont
+evalTopDef (FnDef pos ident argList returnType block) envCont = do -- evalFuntion pos ident argList returnType block envCont
     env <- ask
-    envCont env s
+    envCont env
 
 
-evalDecl :: Decl -> (InterpreterEnv -> Store -> IM Ans) -> Store -> IM Ans
-evalDecl (DeclL _ _ []) envCont store = do
+--evalFuntion :: BNFC'Position -> Ident -> [Arg] -> Type -> Block -> ContEnv -> IM Cont
+--evalFuntion pos ident argList returnType block envCont = do
+
+
+
+evalDecl :: Decl -> ContEnv -> IM Cont
+evalDecl (DeclL _ _ []) envCont = do
     env <- ask
-    envCont env store
- --   ans <- envCont env store
+    envCont env
 
-  --  return ans
-
-evalDecl (DeclL declPos typ ((NoInit initPos ident) : xs)) envCont store = evalDecl (DeclL declPos typ ((Init initPos ident (typeDefaultValue typ)) : xs)) envCont store
+evalDecl (DeclL declPos typ ((NoInit initPos ident) : xs)) envCont = evalDecl (DeclL declPos typ ((Init initPos ident (typeDefaultValue typ)) : xs)) envCont
 
 
---    newEnv <- declare ident typ
---    local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)             
-
-
-evalDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) envCont store = do
+evalDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) envCont = do
     env <- ask
+    store <- get
 
-    let exprCont = \val -> let (newEnv, newStore) = declare ident val env store in 
-            local (const newEnv) (evalDecl (DeclL declPos typ xs) envCont newStore)
-
-      --      restDeclCont <- local (const newEnv) (evalDecl (DeclL declPos typ xs) contEnv)
-          --  return ans)
-
-    evalExpr expr exprCont store
-   -- ans <- evalExpr expr exprCont store
-   -- return ans
-
-
-  --  newEnv <- declare ident typ
-   -- local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr))
-   -- local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)
+    let exprCont = \val -> let (newEnv, newStore) = declare ident val env store in do
+            put newStore
+            local (const newEnv) (evalDecl (DeclL declPos typ xs) envCont)
+    evalExpr expr exprCont
 
 
 
-
-evalExpr :: Expr -> (StoreData -> IM Ans) -> Store -> IM Ans
-evalExpr (ELitInt _ int) contExprM _ = contExprM (IntS int)
-evalExpr (EVar _ ident) contExprM store = do
+evalExpr :: Expr -> ContExpr -> IM Cont
+evalExpr (ELitInt _ int) contExprM = contExprM (IntS int)
+evalExpr (EVar _ ident) contExprM = do
     env <- ask
+    store <- get
     contExprM (getVal ident env store)
-evalExpr (ELitTrue _) contExprM _ = contExprM (BoolS True)
-evalExpr (ELitFalse _) contExprM _ = contExprM (BoolS False)
-evalExpr (EVoid _) contExprM _ = contExprM VoidS
-evalExpr (EString _ str) contExprM _ = contExprM (StringS str)
+evalExpr (ELitTrue _) contExprM = contExprM (BoolS True)
+evalExpr (ELitFalse _) contExprM = contExprM (BoolS False)
+evalExpr (EVoid _) contExprM = contExprM VoidS
+evalExpr (EString _ str) contExprM = contExprM (StringS str)
 
+
+--evalExpr (EApp _ funExpr []) contExprM = evalExpr funExpr contExprM
+
+
+-- evalExpr funExpr (funCont)
+-- funCont :: FunctionS -> IM Cont
+-- FunctionS :: [StoreData] -> ContExpr -> IM Cont
+
+{-
+
+evalExpr (EApp pos funExpr argExprList) contExprM = do
+
+ --   let restExprCont = \val -> evalExpr (EApp pos funExpr restArgs) contExprM
+
+
+    newContExpr :: StoreData -> IM Cont
+    newContExpr :: (FunS ([StoreData] -> ContExpr -> IM Cont)) -> IM Cont
+    newContExpr (FunS fun) =
+
+    evalExpr funExpr newContExpr
+
+--evalExpr (Lambda pos [] returnType instructionBlock) contExprM =
+evalExpr (ELambda pos argList returnType instructionBlock) contExprM =
+    let fun = createFunction argList instructionBlock in contExprM (FunS fun)
+
+
+
+
+createFunction :: [Arg] -> Block -> [StoreData] -> ContExpr -> IM Cont
+createFunction [] block [] contExpr = evalStmt block contExpr
+createFunction ((ArgL _ _ ident) : restArgs) block (val : restVals) contExpr = do
+    env <- ask
+    store <- get
+    let (newEnv, newStore) = declare ident val env store
+    put newStore
+    local (const newEnv) (createFunction restArgs block restVals)
+
+
+
+evalStmt :: Stmt -> ContExpr -> IM Cont
+-}
+
+-- EApp a (Expr' a) [Expr' a]
+-- ELambda a [Arg' a] (Type' a) (Block' a)
 
 
 -- TODO Move to utils

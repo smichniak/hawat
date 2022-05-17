@@ -7,12 +7,9 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Data (Typeable, Data, toConstr)
 
---import AbsHawat ( Type, Ident, Program, BNFC'Position, hasPosition ) -- TODO Recover this
 import AbsHawat
 import TypecheckerEnv
 import TypecheckerError
-
--- TODO Change Nothing to BNFC'NoPosition where possible
 
 maybeError :: Either TypeError TypecheckEnv -> Maybe TypeError
 maybeError (Left err) = Just err
@@ -23,8 +20,8 @@ typecheckProgram (ProgramL _ topDefList) = maybeError $ (runReader $ runExceptT 
 
 typecheckTopDefs :: [TopDef] -> TCM TypecheckEnv
 typecheckTopDefs [] = do
-    declaredMain <- getType Nothing (Ident "main")
-    unless (compareTypes declaredMain mainFunction) (throwError $ TE Nothing (TEMainSig declaredMain mainFunction))
+    declaredMain <- getType BNFC'NoPosition (Ident "main")
+    unless (compareTypes declaredMain mainFunction) (throwError $ makeError declaredMain (TEMainSig declaredMain mainFunction))
     ask
 typecheckTopDefs (x:xs) = do
     newEnv <- typecheckTopDef x
@@ -39,7 +36,7 @@ typecheckDecl (DeclL _ _ []) = ask
 
 typecheckDecl (DeclL declPos typ ((NoInit _ ident) : xs)) = do
     newEnv <- declare ident typ
-    local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)             
+    local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)
 
 typecheckDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) = do
     newEnv <- declare ident typ
@@ -98,7 +95,7 @@ typecheckStmt (Ret _ returnExpr) = do
     retType <- typecheckExpr returnExpr
     unless (compareTypes expectedType retType) (throwError $ makeError returnExpr (TEReturn retType expectedType))
     ask
-typecheckStmt (VRet pos) = typecheckStmt (Ret pos (EVoid Nothing))
+typecheckStmt (VRet pos) = typecheckStmt (Ret pos (EVoid pos))
 typecheckStmt (SCond _ cond) = do
     env <- ask
     local (addLevel . const env) (typecheckSCond cond)
@@ -140,11 +137,11 @@ typecheckExpr (EVoid pos) = do return $ Void pos
 typecheckExpr (EApp pos funExpr exprList) = do
     appliedTypes <- sequence $ map typecheckExpr exprList
     funType <- typecheckExpr funExpr
-    case funType of 
-        Fun funPos argumentList returnType ->
-            case and $ (length appliedTypes == length argumentList) : zipWith compareTypes appliedTypes argumentList of -- TODO Use compare tyes on functions, change to unless
-                False ->  throwError $ TE pos (TEApplication appliedTypes argumentList)
-                True -> return returnType
+    case funType of
+        Fun funPos argumentList returnType -> do
+            let correctArguments = and $ (length appliedTypes == length argumentList) : zipWith compareTypes appliedTypes argumentList
+            unless correctArguments (throwError $ TE pos (TEApplication appliedTypes argumentList))
+            return returnType
         _ -> throwError $ makeError funExpr (TENotFunction funType)
 
 typecheckExpr (EGet pos arrExpr indexExpr) = do
@@ -162,16 +159,16 @@ typecheckExpr (ELambda pos argList returnType block) = do
     return $ functionType pos argList returnType
 
 -- TODO Typing empty array, add type 'Any' that compares with every other type
-typecheckExpr (EArray pos [expr]) = do 
+typecheckExpr (EArray pos [expr]) = do
     exprType <- typecheckExpr expr
     return $ Arr pos exprType
-typecheckExpr (EArray pos (expr : exps)) = do 
+typecheckExpr (EArray pos (expr : exps)) = do
     restArr <- typecheckExpr (EArray pos exps)
     exprType <- typecheckExpr expr
     let Arr _ restArrType = restArr -- Pattern always fits
     unless (compareTypes exprType restArrType) (throwError $ TE pos (TEArrayType exprType restArrType))
     return $ Arr pos exprType
-        
+
 
 typecheckExpr (Neg pos expr) = unaryCheck pos expr negTypes
 typecheckExpr (Not pos expr) = unaryCheck pos expr notTypes
@@ -187,11 +184,11 @@ typecheckExpr (EOr pos expr1 expr2) = binaryCheck pos expr1 expr2 orTypes >> (re
 
 
 unaryCheck :: BNFC'Position -> Expr -> [Type] -> TCM Type
-unaryCheck pos expr allowedTypes = do 
+unaryCheck pos expr allowedTypes = do
     exprType <- typecheckExpr expr
     unless (or $ map (compareTypes exprType) allowedTypes) (throwError $ TE pos (TEUnaryOp exprType))
     return exprType
-        
+
 
 comparePairs :: (Type, Type) -> (Type, Type) -> Bool
 comparePairs (t1l, t1r) (t2l, t2r) = compareTypes t1l t2l && compareTypes t1r t2r
@@ -207,7 +204,7 @@ deriving instance Data a => Data (Type' a)
 
 compareTypes :: Type -> Type -> Bool
 compareTypes (Arr _ t1) (Arr _ t2) = compareTypes t1 t2
-compareTypes (Fun _ argList1 returnType1) (Fun _ argList2 returnType2) = 
+compareTypes (Fun _ argList1 returnType1) (Fun _ argList2 returnType2) =
     (length argList1 == length argList2) && (and $ zipWith compareTypes (returnType1 : argList1) (returnType2 : argList2))
 compareTypes t1 t2 = toConstr t1 == toConstr t2
 
@@ -215,14 +212,14 @@ isArray :: Type -> Bool
 isArray (Arr _ _) = True
 isArray _ = False
 
-int = Int Nothing
-bool = Bool Nothing
-str = Str Nothing
-voidT = Void Nothing
-mainFunction = Fun Nothing [] int
+int = Int BNFC'NoPosition
+bool = Bool BNFC'NoPosition
+str = Str BNFC'NoPosition
+voidT = Void BNFC'NoPosition
+mainFunction = Fun BNFC'NoPosition [] int
 
 simpleTypes = [int, bool, str, voidT]
-arrays = map (\t -> Arr Nothing t) simpleTypes
+arrays = map (\t -> Arr (hasPosition t) t) simpleTypes
 
 cartProd :: [a] -> [b] -> [(a, b)]
 cartProd xs ys = [(x,y) | x <- xs, y <- ys]

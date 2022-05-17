@@ -14,8 +14,8 @@ type Loc = Int
 type Ans = Store
 
 type Cont = Store -> Ans
-type ContExpr = StoreData -> Store -> Ans
-type ContEnv = InterpreterEnv -> Cont
+type ContExpr = StoreData -> IM Cont
+type ContEnv = InterpreterEnv -> IM Cont
 
 emptyCont = id
 
@@ -23,9 +23,22 @@ data Store = IStore {storeMap :: IntMap.IntMap StoreData,
                      nextLoc :: Loc
                      } deriving (Eq, Ord, Show)
 
-data StoreData = IntS Integer | BoolS Bool | StringS String | VoidS | ArrayS (IntMap.IntMap StoreData) -- | FunS (Cont -> Cont) TODO Function looks differenct thant PROC, propably takes sth of the reurn type
-    deriving (Eq, Ord, Show) -- TODO Add void type? 
+data StoreData = IntS Integer | BoolS Bool | StringS String | VoidS | ArrayS (IntMap.IntMap StoreData)
+ -- | FunS ([StoreData] -> ContExpr -> IM Cont) -- | StoreArray [StoreData] -- Think about this type, maybe (Map Ident StoreData) -> StoreData
+    deriving (Eq, Ord, Show) -- TODO Kepp syntax of functions, not semantics
+{-
 
+instance Show StoreData where
+    show (IntS i) = show i
+    show (BoolS b) = show b
+    show (StringS s) = s
+    show VoidS = "void"
+    show (ArrayS a) = show a
+    show (FunS _) = "Function"
+-}
+
+--instance Show Store where
+ --   show (IStore s l) = show s ++ " " ++ show l
 
 type InterpreterEnv = Map.Map Ident Loc
 
@@ -43,11 +56,7 @@ initStore = IStore {storeMap = IntMap.empty,
                     nextLoc = 0
                     }
 
---type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv (Cont Ans)) a
---type IM a = ContT Ans (ExceptT InterpreterError (Reader InterpreterEnv)) a
---type IM a = ExceptT InterpreterError (ContT Ans (Reader InterpreterEnv)) a
-
-type IM a = ExceptT InterpreterError (Reader InterpreterEnv) a
+type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv (State Store)) a
 
 
 
@@ -79,5 +88,3 @@ interpretTopDefs _ = do
     throwError $ IE Nothing IEDivZero
 
 -}
-
--- TODO Function to inc loc

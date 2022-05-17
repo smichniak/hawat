@@ -1,7 +1,7 @@
 module InterpreterError where
 
 import Numeric ( showInt )
- 
+
 import AbsHawat
 import TypecheckerError
 
