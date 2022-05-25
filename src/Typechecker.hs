@@ -40,20 +40,20 @@ typecheckDecl (DeclL declPos typ ((NoInit _ ident) : xs)) = do
 
 typecheckDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) = do
     newEnv <- declare ident typ
-    local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr))
+    _ <- local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr)) -- Can be discarded, we only care if errors are thrown
     local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)
 
 getArgType :: Arg -> Type
 getArgType (ArgL _ typ _) = typ
 
 functionType :: BNFC'Position -> [Arg] -> Type -> Type
-functionType pos argList returnType = Fun pos (map getArgType argList) returnType
+functionType pos argList = Fun pos (map getArgType argList)
 
 typecheckFunction :: BNFC'Position -> Ident -> [Arg] -> Type -> Block -> TCM TypecheckEnv
 typecheckFunction pos ident argList returnType block = do
     newEnv <- declare ident (functionType pos argList returnType)
     argEnv <- local (addLevel . const newEnv) (declareArgs argList)
-    local (setReturnType returnType . const argEnv) (typecheckBlock block)
+    _ <- local (setReturnType returnType . const argEnv) (typecheckBlock block)
     return newEnv
 
 typecheckBlock :: Block -> TCM TypecheckEnv
@@ -66,17 +66,17 @@ typecheckStmt :: Stmt -> TCM TypecheckEnv
 typecheckStmt (Empty _) = ask
 typecheckStmt (BStmt _ block) = do
     env <- ask
-    local (addLevel . const env) (typecheckBlock block)
+    _ <- local (addLevel . const env) (typecheckBlock block)
     ask
 typecheckStmt (SDecl _ decl) = typecheckDecl decl
 
-typecheckStmt (Ass pos (EVar varPos ident) expr) = do
+typecheckStmt (Ass _ (EVar varPos ident) expr) = do
     checkReadOnly varPos ident
     exprType <- typecheckExpr expr
     lType <- getType varPos ident
     unless (compareTypes lType exprType) (throwError $ makeError expr (TEAssignment lType exprType))
     ask
-typecheckStmt (Ass pos (EGet arrPos arrExpr indexExpr) expr) = do
+typecheckStmt (Ass _ (EGet arrPos arrExpr indexExpr) expr) = do
     exprType <- typecheckExpr expr
     arrType <- typecheckExpr (EGet arrPos arrExpr indexExpr)
     unless (compareTypes arrType exprType) (throwError $ makeError expr (TEAssignment arrType exprType))
@@ -98,11 +98,11 @@ typecheckStmt (Ret _ returnExpr) = do
 typecheckStmt (VRet pos) = typecheckStmt (Ret pos (EVoid pos))
 typecheckStmt (SCond _ cond) = do
     env <- ask
-    local (addLevel . const env) (typecheckSCond cond)
+    _ <- local (addLevel . const env) (typecheckSCond cond)
     ask
 typecheckStmt (While pos condExpr block) = do
     env <- ask
-    local (goInsideLoop . addLevel . const env) (typecheckSCond (If pos condExpr block))
+    _ <- local (goInsideLoop . addLevel . const env) (typecheckSCond (If pos condExpr block))
     ask
 typecheckStmt (For pos ident startExpr finalExpr block) = do
     env <- ask
@@ -111,10 +111,10 @@ typecheckStmt (For pos ident startExpr finalExpr block) = do
     endType <- typecheckExpr finalExpr
     unless (compareTypes endType int)  (throwError $ makeError finalExpr (TEForIter endType))
     loopEnv <- local (addLevel . const env) (declare ident (Int pos))
-    local ((addReadOnly ident) . goInsideLoop . addLevel . const loopEnv) (typecheckSCond (If pos (ELitTrue pos) block))
+    _ <- local (addReadOnly ident . goInsideLoop . addLevel . const loopEnv) (typecheckSCond (If pos (ELitTrue pos) block))
     ask
 typecheckStmt (LoopJmp _ loopS) = checkInLoop loopS >> ask
-typecheckStmt (SExp pos expr) = typecheckExpr expr >> ask
+typecheckStmt (SExp _ expr) = typecheckExpr expr >> ask
 
 typecheckSCond :: Cond -> TCM TypecheckEnv
 typecheckSCond (If _ condExpr block) = do
@@ -122,10 +122,10 @@ typecheckSCond (If _ condExpr block) = do
     unless (compareTypes condType bool) (throwError $ makeError condExpr (TECondtion condType))
     typecheckBlock block
 typecheckSCond (IfElse pos condExpr block1 block2) = do
-    typecheckSCond (If pos condExpr block1)
+    _ <- typecheckSCond (If pos condExpr block1)
     typecheckBlock block2
 typecheckSCond (ElseIf pos condExpr block alternativeCond) = do
-    typecheckSCond (If pos condExpr block)
+    _ <- typecheckSCond (If pos condExpr block)
     typecheckSCond alternativeCond
 
 typecheckExpr :: Expr -> TCM Type
@@ -135,10 +135,10 @@ typecheckExpr (ELitTrue pos) = do return $ Bool pos
 typecheckExpr (ELitFalse pos) = do return $ Bool pos
 typecheckExpr (EVoid pos) = do return $ Void pos
 typecheckExpr (EApp pos funExpr exprList) = do
-    appliedTypes <- sequence $ map typecheckExpr exprList
+    appliedTypes <- mapM typecheckExpr exprList
     funType <- typecheckExpr funExpr
     case funType of
-        Fun funPos argumentList returnType -> do
+        Fun _ argumentList returnType -> do
             let correctArguments = and $ (length appliedTypes == length argumentList) : zipWith compareTypes appliedTypes argumentList
             unless correctArguments (throwError $ TE pos (TEApplication appliedTypes argumentList))
             return returnType
@@ -155,7 +155,7 @@ typecheckExpr (EGet pos arrExpr indexExpr) = do
 
 typecheckExpr (EString pos _) = do return $ Str pos
 typecheckExpr (ELambda pos argList returnType block) = do
-    typecheckFunction pos (Ident "") argList returnType block
+    _ <- typecheckFunction pos (Ident "") argList returnType block
     return $ functionType pos argList returnType
 
 -- TODO Typing empty array, add type 'Any' that compares with every other type
@@ -176,17 +176,17 @@ typecheckExpr (EMul pos expr1 (Times _) expr2) = do
     binaryCheck pos expr1 expr2 timesTypes
     exprType1 <- typecheckExpr expr1
     if isArray exprType1 then return exprType1 else typecheckExpr expr2
-typecheckExpr (EMul pos expr1 _ expr2) = binaryCheck pos expr1 expr2 mulTypes >> (return int)
-typecheckExpr (EAdd pos expr1 _ expr2) = binaryCheck pos expr1 expr2 addTypes >> (return int)
-typecheckExpr (ERel pos expr1 _ expr2) = binaryCheck pos expr1 expr2 relTypes >> (return bool)
-typecheckExpr (EAnd pos expr1 expr2) = binaryCheck pos expr1 expr2 andTypes >> (return bool)
-typecheckExpr (EOr pos expr1 expr2) = binaryCheck pos expr1 expr2 orTypes >> (return bool)
+typecheckExpr (EMul pos expr1 _ expr2) = binaryCheck pos expr1 expr2 mulTypes >> return int
+typecheckExpr (EAdd pos expr1 _ expr2) = binaryCheck pos expr1 expr2 addTypes >> return int
+typecheckExpr (ERel pos expr1 _ expr2) = binaryCheck pos expr1 expr2 relTypes >> return bool
+typecheckExpr (EAnd pos expr1 expr2) = binaryCheck pos expr1 expr2 andTypes >> return bool
+typecheckExpr (EOr pos expr1 expr2) = binaryCheck pos expr1 expr2 orTypes >> return bool
 
 
 unaryCheck :: BNFC'Position -> Expr -> [Type] -> TCM Type
 unaryCheck pos expr allowedTypes = do
     exprType <- typecheckExpr expr
-    unless (or $ map (compareTypes exprType) allowedTypes) (throwError $ TE pos (TEUnaryOp exprType))
+    unless (any (compareTypes exprType) allowedTypes) (throwError $ TE pos (TEUnaryOp exprType))
     return exprType
 
 
@@ -197,7 +197,7 @@ binaryCheck :: BNFC'Position -> Expr -> Expr -> [(Type, Type)] -> TCM ()
 binaryCheck pos expr1 expr2 allowedTypes = do
     exprType1 <- typecheckExpr expr1
     exprType2 <- typecheckExpr expr2
-    unless (or $ map (comparePairs (exprType1, exprType2)) allowedTypes) (throwError $ TE pos (TEBinaryOp exprType1 exprType2))
+    unless (any (comparePairs (exprType1, exprType2)) allowedTypes) (throwError $ TE pos (TEBinaryOp exprType1 exprType2))
 
 deriving instance Typeable (Type' a)
 deriving instance Data a => Data (Type' a)
@@ -205,7 +205,7 @@ deriving instance Data a => Data (Type' a)
 compareTypes :: Type -> Type -> Bool
 compareTypes (Arr _ t1) (Arr _ t2) = compareTypes t1 t2
 compareTypes (Fun _ argList1 returnType1) (Fun _ argList2 returnType2) =
-    (length argList1 == length argList2) && (and $ zipWith compareTypes (returnType1 : argList1) (returnType2 : argList2))
+    (length argList1 == length argList2) && and (zipWith compareTypes (returnType1 : argList1) (returnType2 : argList2))
 compareTypes t1 t2 = toConstr t1 == toConstr t2
 
 isArray :: Type -> Bool

@@ -17,6 +17,7 @@ data TypecheckEnv = TCEnv {tceTypeEnv      :: Map.Map Ident (Type, DeclLevel),
                            tceReturnType   :: Type
                            }
 
+initTCEnv :: TypecheckEnv
 initTCEnv = TCEnv {tceTypeEnv = Map.empty,
                    tceReadOnly = Set.empty,
                    tceLevel = 0,
@@ -43,7 +44,7 @@ declare ident t = if ident == Ident "" then ask else do -- Igonore empty ident, 
 
 declareArgs :: [Arg] -> TCM TypecheckEnv
 declareArgs [] = ask
-declareArgs (ArgL argPos typ ident : xs) = do
+declareArgs (ArgL _ typ ident : xs) = do
     newEnv <- declare ident typ
     local (const newEnv) (declareArgs xs)
 

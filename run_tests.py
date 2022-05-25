@@ -1,8 +1,9 @@
 import argparse
-from http.client import PROCESSING
+from distutils import core
 import pathlib
 import sys
 import subprocess
+from typing import Tuple
 
 PROGRAM_EXTENSION = '.hwt'
 OUT_EXTENSION = '.out'
@@ -15,41 +16,60 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def check_file(file_path: pathlib.Path, interpreter: pathlib.Path):
-    out_file = file_path.with_suffix(OUT_EXTENSION)
-    interpreter_process = subprocess.run([str(interpreter.resolve()), str(file_path.resolve())])
+def get_file_content(file_path: pathlib.Path) -> str:
+    with open(file_path, 'r') as f:
+        text = f.read()
+    
+    return text
 
-    print(file_path)
-    print(interpreter_process.stderr)
-    print(interpreter_process.stdout)
+def check_file(in_file: pathlib.Path, interpreter: pathlib.Path) -> bool:
+    interpreter_process = subprocess.run([str(interpreter.resolve()), str(in_file.resolve())], capture_output=True)
 
+    print(f'Running {str(in_file):<40}', end='')
+    out = interpreter_process.stdout.decode()
+    err = interpreter_process.stderr.decode()
 
-def run_folder(path: pathlib.Path, interpreter: pathlib.Path):
-    check_exists(path)
+    out_to_check = out if out else err # The interpreter should only output on stderr or stdout, we can check only one
+
+    out_file = in_file.with_suffix(OUT_EXTENSION)
+    out_content = get_file_content(out_file)
+    if out_to_check == out_content:
+        print('Success')
+        return True
+    else:
+        print(f'Failure. Expected {repr(out_content)}, got {repr(out_to_check)}.')
+        return False
+
+def run_folder(path: pathlib.Path, interpreter: pathlib.Path) -> Tuple[int, int]:
+    correct = 0
+    total = 0
 
     for file in path.iterdir():
         if file.suffix == PROGRAM_EXTENSION:
-            check_file(file, interpreter)
+            total += 1
+            correct += check_file(file, interpreter)
 
+    return correct, total
 
-def check_exists(folder: pathlib.Path):
+def check_exists(folder: pathlib.Path) -> None:
     if not folder.exists():
-        print(f'Directory/file \'{folder}\' does not exist', file=sys.stderr)
+        
         exit(1)
-
 
 def main() -> None:
     args = parse_args()
 
     test_folder = pathlib.Path(args.test_folder)
-    check_exists(test_folder)
-
     interpreter = pathlib.Path(args.interpreter)
-    check_exists(interpreter)
 
-    run_folder(test_folder / 'good', interpreter)
-    run_folder(test_folder / 'bad', interpreter)
+    correct_good, total_good = run_folder(test_folder / 'good', interpreter)
+    correct_bad, total_bad = run_folder(test_folder / 'bad', interpreter)
+
+    print(f'Correct {correct_good + correct_bad} / {total_good + total_bad}')
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as not_found:
+        print(f'Directory/file \'{not_found.filename}\' does not exist', file=sys.stderr)

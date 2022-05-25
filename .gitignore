@@ -4,3 +4,9 @@ src/parser/
 src/.DS_Store
 
 .DS_Store
+
+szymon_michniak/
+
+build/
+
+*.zip

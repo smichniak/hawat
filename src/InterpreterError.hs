@@ -2,8 +2,8 @@ module InterpreterError where
 
 import Numeric ( showInt )
 
-import AbsHawat
-import TypecheckerError
+import AbsHawat ( BNFC'Position )
+import TypecheckerError ( showPosition )
 
 
 data InterpreterErrors = IEDivZero                       | -- Division by zero
@@ -20,4 +20,4 @@ instance Show InterpreterErrors where
 
 
 instance Show InterpreterError where
-    showsPrec _ (IE pos err) = showString "Interpreter error at " . showPosition pos . showsPrec 0 err . showChar '.'
+    showsPrec _ (IE pos err) = showString "Interpreter error at " . showPosition pos . shows err . showChar '.'
