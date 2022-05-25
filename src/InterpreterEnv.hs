@@ -11,44 +11,48 @@ import InterpreterError
 
 
 type Loc = Int
-type Ans = Store
+data Ans = ProgramAns Store | FunctionAns StoreData
 
 type Cont = Store -> Ans
-type ContExpr = StoreData -> Store -> Ans
-type ContEnv = InterpreterEnv -> Cont
+type ContExpr = StoreData -> IM Cont
+type ContEnv = InterpreterEnv -> IM Cont
 
-emptyCont = id
+
+emptyProgramCont :: Cont
+emptyProgramCont = ProgramAns
 
 data Store = IStore {storeMap :: IntMap.IntMap StoreData,
                      nextLoc :: Loc
-                     } deriving (Eq, Ord, Show)
+                     } -- deriving (Eq, Ord, Show)
 
-data StoreData = IntS Integer | BoolS Bool | StringS String | VoidS | ArrayS (IntMap.IntMap StoreData) -- | FunS (Cont -> Cont) TODO Function looks differenct thant PROC, propably takes sth of the reurn type
-    deriving (Eq, Ord, Show) -- TODO Add void type? 
+data StoreData = IntS Integer | BoolS Bool | StringS String | VoidS | ArrayS (IntMap.IntMap StoreData)
+  | FunS (InterpreterEnv, [Arg], Type, Block) -- | StoreArray [StoreData] -- Think about this type, maybe (Map Ident StoreData) -> StoreData
+  --  deriving (Eq, Ord, Show) -- TODO Kepp syntax of functions, not semantics
 
+
+instance Show StoreData where
+    show (IntS i) = show i
+    show (BoolS b) = show b
+    show (StringS s) = s
+    show VoidS = "void"
+    show (ArrayS a) = show a
+    show (FunS (_, argList, returnType, _)) = show argList ++ " " ++ show returnType
+
+
+instance Show Store where
+    show (IStore s l) = show s ++ " " ++ show l
 
 type InterpreterEnv = Map.Map Ident Loc
 
-{-
-initIEnv = IEnv {iEnv = Map.empty,
-               --  funStore = IntMap.empty,
-                 nextLoc = 0
-                 }
-
--}
-
+initIEnv :: InterpreterEnv
 initIEnv = Map.empty
 
+initStore :: Store
 initStore = IStore {storeMap = IntMap.empty,
                     nextLoc = 0
                     }
 
---type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv (Cont Ans)) a
---type IM a = ContT Ans (ExceptT InterpreterError (Reader InterpreterEnv)) a
---type IM a = ExceptT InterpreterError (ContT Ans (Reader InterpreterEnv)) a
-
-type IM a = ExceptT InterpreterError (Reader InterpreterEnv) a
-
+type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv (State Store)) a
 
 
 declare :: Ident -> StoreData -> InterpreterEnv -> Store -> (InterpreterEnv, Store)
@@ -60,24 +64,4 @@ declare ident value env store =
 
 
 getVal :: Ident -> InterpreterEnv -> Store -> StoreData
-getVal ident env store = (storeMap store) IntMap.! (env Map.! ident)
-
---interpretTopDefs :: a -> IM a
---interpretTopDefs a = return a
-
-
-{-
-mainFun k s = s
-
-interpretTopDefs :: [TopDef] -> IM Store
-interpretTopDefs _ = do
-  --  let s = IntMap.empty
-  --  let st = IntMap.insert 1 (IntS 2) s
-  --  return st
-    env <- ask
-    callCC mainFun
-    throwError $ IE Nothing IEDivZero
-
--}
-
--- TODO Function to inc loc
+getVal ident env store = storeMap store IntMap.! (env Map.! ident)

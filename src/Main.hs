@@ -3,7 +3,6 @@ module Main where
 import System.Environment ( getArgs )
 import System.Exit        ( exitFailure )
 import System.IO          ( hPutStrLn, stderr )
-import Control.Monad      ( when )
 
 import AbsHawat   ( Program )
 import LexHawat   ( Token )
@@ -11,15 +10,17 @@ import ParHawat   ( pProgram, myLexer )
 import SkelHawat  ()
 
 import Typechecker
-import Interpreter 
+import Interpreter
+import InterpreterEnv
 
-type Err        = Either String
+type Err      = Either String
 type ParseFun = [Token] -> Err Program
 
 
 runFile :: ParseFun -> FilePath -> IO ()
 runFile p f = readFile f >>= run p
 
+pareseErrorStr :: String
 pareseErrorStr = "Parse Failed\n"
 
 run :: ParseFun -> String -> IO ()
@@ -28,13 +29,13 @@ run p s =
         Left err -> do
             hPutStrLn stderr pareseErrorStr
             hPutStrLn stderr err
-            exitFailure 
-        Right programTree -> 
+            exitFailure
+        Right programTree ->
             case typecheckProgram programTree of -- add prints
-                Just err -> putStrLn (show err)
+                Just err -> print err
                 Nothing -> case interpretProgram programTree of
-                    Left interpreterErr -> putStrLn (show interpreterErr)
-                    Right st -> putStrLn (show st) 
+                    Left interpreterErr -> print interpreterErr
+                    Right (ProgramAns st) -> print st
 
 usage :: IO ()
 usage = do
