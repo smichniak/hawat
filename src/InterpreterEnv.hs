@@ -62,6 +62,21 @@ declare ident value env store =
         newStore = IStore (IntMap.insert loc value (storeMap store)) (loc + 1) in
     (newEnv, newStore)
 
+updateVar :: Ident -> StoreData -> IM Store
+updateVar ident newVal = do
+    env <- ask
+    --throwError $ IE BNFC'NoPosition (IES $ show env)
+    storeValMap <- gets storeMap
+    currentLoc <- gets nextLoc
+    let (Ident s) = ident
+    let (Just loc) = Map.lookup ident env
+    
+    let newMap = IntMap.insert loc newVal storeValMap
+    --throwError $ IE BNFC'NoPosition IEDivZero
+    -- throwError $ IE BNFC'NoPosition (IES $ show (env, store))
+    return $ IStore newMap currentLoc
+
+
 
 getVal :: Ident -> InterpreterEnv -> Store -> StoreData
 getVal ident env store = storeMap store IntMap.! (env Map.! ident)

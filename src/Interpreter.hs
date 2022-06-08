@@ -10,7 +10,6 @@ import qualified Data.Map as Map
 import AbsHawat
 import InterpreterEnv
 import InterpreterError
-import Control.Monad.Cont (cont)
 
 interpretProgram :: Program -> Either InterpreterError Ans
 interpretProgram (ProgramL _ topDefList) = evalState ((runReaderT $ runExceptT $ interpretTopDefProgram topDefList) initIEnv) initStore
@@ -111,6 +110,24 @@ evalStmt (Ret _ expr) cont = evalExpr expr functionReturn
 evalStmt (VRet _) cont = evalExpr (typeDefaultExpr $ Void BNFC'NoPosition) functionReturn
 evalStmt (SExp _ expr) cont = evalExpr expr (\_ -> return cont)
 evalStmt (SCond _ cond) cont = evalCond cond cont
+evalStmt (Ass _ (EVar _ ident) expr) cont = evalExpr expr (\newVal -> do
+ {-   newStore <- updateVar ident newVal
+    let ans = cont newStore
+    let (FunctionAns a) = ans
+   -- throwError $ IE BNFC'NoPosition (IES $ show (a, newStore))
+    return (\s -> ans)
+    )
+    -}
+    newStore <- updateVar ident newVal
+   -- modify' (const newStore)
+    put newStore
+    env <- ask
+    store <- get
+  --  throwError $ IE BNFC'NoPosition (IES $ show (env, store, newStore))
+    return (\s -> cont newStore))
+
+
+
 
 
 evalCond :: Cond -> Cont -> IM Cont
@@ -137,6 +154,7 @@ evalBlock (BlockL _ []) cont = return cont
 evalBlock (BlockL p (s1 : restS)) cont = do
     restCont <- evalBlock (BlockL p restS) cont
     evalStmt s1 restCont
+
 
 
 

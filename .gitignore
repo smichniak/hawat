@@ -10,3 +10,21 @@ szymon_michniak/
 build/
 
 *.zip
+
+test.hwt
+
+src/AbsHawat.hs
+
+src/ErrM.hs
+
+src/LexHawat.hs
+
+src/ParHawat.hs
+
+src/PrintHawat.hs
+
+src/SkelHawat.hs
+
+src/TestHawat.hs
+
+interpreter
