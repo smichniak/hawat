@@ -1,0 +1,11 @@
+fun main () -> int {
+    while (true) {
+        break;
+        printStr("This is never written.");
+    }
+
+    printInt(42); printStr("\n");
+
+
+    return 0;
+}

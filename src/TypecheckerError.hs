@@ -1,8 +1,9 @@
 module TypecheckerError where
 
-import AbsHawat
+import AbsHawat ( BNFC'Position, HasPosition(..), Ident, Type, Type'(Bool, Int) )
 import PrintHawat ( prt, render, Print )
 import LexHawat ( printPosn, Posn( Pn ) )
+
 
 data TypeErrors = TEBreak                       | -- Break not in a loop
                   TEContinue                    | -- Continue not in a loop
@@ -25,7 +26,7 @@ data TypeErrors = TEBreak                       | -- Break not in a loop
 
 data TypeError = TE {position :: BNFC'Position, error :: TypeErrors}
 
-showsPrintable :: Print a => a -> ShowS -- TODO Change name to include types and Idents, maybe add '' around name
+showsPrintable :: Print a => a -> ShowS
 showsPrintable = showString . render . prt 0
 
 showsIntT :: ShowS

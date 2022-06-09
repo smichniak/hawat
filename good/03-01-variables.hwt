@@ -1,0 +1,28 @@
+fun main () -> int {
+    int x = 42, y = x + 10, w = x * x / y;
+    int z = 3 * x;
+
+    printInt(x); printStr("\n");
+    printInt(y); printStr("\n");
+    printInt(w); printStr("\n");
+    printInt(z); printStr("\n");
+
+    x = 66;
+    printInt(x); printStr("\n");
+    x++;
+    printInt(x); printStr("\n");
+    y--;
+    printInt(y); printStr("\n");
+
+
+    bool t = true;
+    bool f = false;
+
+    printBool(t || t && t || f); printStr("\n");
+
+    string s = "Hello World!\n";
+    printStr(s);
+
+
+    return 0;
+}

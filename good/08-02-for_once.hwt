@@ -1,0 +1,12 @@
+fun f () -> int {
+    printStr("End condition calculated only once.\n");
+    return 5;
+}
+
+fun main () -> int {
+    for (i = 0 to f()) {
+        printInt(i); printStr("\n");
+    }
+
+    return 0;
+}

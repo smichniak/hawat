@@ -1,0 +1,7 @@
+fun main () -> int {
+    (int) -> int double = lambda(int x) -> int {return 2 * x;};
+
+    printInt(double(2)); printStr("\n");
+
+    return 0;
+}

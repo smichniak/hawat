@@ -1,0 +1,6 @@
+fun main () -> int {
+    [int] x = [1, 2, 3];
+    int y = x(2, true, "str"); 
+
+    return 0;
+}

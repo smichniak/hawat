@@ -1,0 +1,31 @@
+fun fibAcc (int n, int a, int b) -> int {
+    if (n == 0) {
+        return a;
+    } else {
+        return fibAcc(n-1, b, a + b);
+    }
+
+}
+
+
+fun fib (int n) -> int {
+    return fibAcc(n, 0, 1);
+}
+
+
+fun main () -> int {
+    printInt(fib(0)); printStr("\n");
+    printInt(fib(1)); printStr("\n");
+    printInt(fib(2)); printStr("\n");
+    printInt(fib(3)); printStr("\n");
+    printInt(fib(4)); printStr("\n");
+    printInt(fib(5)); printStr("\n");
+    printInt(fib(6)); printStr("\n");
+    printInt(fib(7)); printStr("\n");
+
+    printInt(fib(100)); printStr("\n");
+
+
+
+    return 0;
+}

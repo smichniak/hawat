@@ -1,0 +1,24 @@
+fun naturals () -> () -> int {
+    int n = -1;
+    return lambda() -> int {n++; return n;};
+}
+
+
+fun main () -> int {
+    () -> int nats = naturals();
+
+    for (i = 0 to 5) {
+        int x = nats();
+        printInt(x); printStr("\n");
+    }
+
+    while (nats() < 100) {}
+
+    for (i = 0 to 5) {
+        int x = nats();
+        printInt(x); printStr("\n");
+    }
+    
+
+    return 0;
+}

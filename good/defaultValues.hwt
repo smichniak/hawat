@@ -1,0 +1,17 @@
+fun main () -> int {
+    int x;
+    bool b;
+    string s;
+    (int, bool) -> int f;
+    () -> bool g;
+    (string, string) -> string h;
+
+    printInt(x); printStr("\n"); // 0
+    printBool(b); printStr("\n"); // False
+    printStr(s); printStr("\n"); // ""
+    printInt(f(2, true)); printStr("\n"); // 0
+    printBool(g()); printStr("\n"); // False
+    printStr(h("csad", "fasdsf")); printStr("\n"); // ""
+
+    return 0;
+}

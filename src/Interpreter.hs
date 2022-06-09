@@ -1,178 +1,192 @@
 module Interpreter where
 
-import Control.Monad.Except
-import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.Except (when, runExceptT, MonadIO(liftIO), MonadError(throwError))
+import Control.Monad.Reader (MonadReader(local, ask), ReaderT(runReaderT))
+import Control.Monad.State ()
+import System.IO ()
 
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map as Map
 
 import AbsHawat
 import InterpreterEnv
-import InterpreterError
-
-interpretProgram :: Program -> Either InterpreterError Ans
-interpretProgram (ProgramL _ topDefList) = evalState ((runReaderT $ runExceptT $ interpretTopDefProgram topDefList) initIEnv) initStore
---interpretProgram (ProgramL _ topDefList) = (runCont (runReaderT (runExceptT (interpretTopDefs topDefList)) initIEnv)) id
+import InterpreterError (InterpreterError(IE), InterpreterErrors(IEModZero, IEDivZero))
+import Utils (printIdents, naturals, getPlaceholderArgs)
 
 
--- Empty identifier is not taken, we can use it
-callMain = Global BNFC'NoPosition (DeclL BNFC'NoPosition (Int BNFC'NoPosition) [Init BNFC'NoPosition (Ident "") (EApp BNFC'NoPosition (EVar BNFC'NoPosition (Ident "main")) [])])
-
-interpretTopDefProgram :: [TopDef] -> IM Ans
-interpretTopDefProgram defs = do
-  --  finalCont <- evalTopDefs (defs) emptyCont -- TODO Restore: evalTopDefs (defs ++ [callMain]) emptyCont
-    finalCont <- evalTopDefs (defs ++ [callMain]) emptyProgramCont
-    gets finalCont
-    --return store
- --   return $ finalCont store
- --   throwError $ IE Nothing IEDivZero
-
-
-evalTopDefs :: [TopDef] -> Cont -> IM Cont
-evalTopDefs [] cont = return cont
-  --  do
-  --  store <- get
-  --  return $ cont store
-
-evalTopDefs (def : restDefs) cont = do
-    let envCont = \newEnv -> local (const newEnv) (evalTopDefs restDefs cont)
-    evalTopDef def envCont
-
-evalTopDef :: TopDef -> ContEnv -> IM Cont
-evalTopDef (Global _ decl) envCont = evalDecl decl envCont
-evalTopDef (FnDef pos ident argList returnType block) envCont = evalFuntionDef ident argList returnType block envCont
-
-evalFuntionDef :: Ident -> [Arg] -> Type -> Block -> ContEnv -> IM Cont
-evalFuntionDef ident argList returnType block envCont = do
-    env <- ask
-    store <- get
-    let (newEnv, newStore) = declare ident (FunS (newEnv, argList, returnType, block)) env store -- TODO Incredible, that this works (recursive newEnv)
-    put newStore
-    envCont newEnv
-
-evalDecl :: Decl -> ContEnv -> IM Cont
-evalDecl (DeclL _ _ []) envCont = do
-    env <- ask
-    envCont env
-evalDecl (DeclL declPos typ ((NoInit initPos ident) : xs)) envCont = evalDecl (DeclL declPos typ (Init initPos ident (typeDefaultExpr typ) : xs)) envCont
-evalDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) envCont = do
-    env <- ask
-    store <- get
-
-    let exprCont = \val -> let (newEnv, newStore) = declare ident val env store in do
-            put newStore
-            local (const newEnv) (evalDecl (DeclL declPos typ xs) envCont)
-    evalExpr expr exprCont
-
-evalExpr :: Expr -> ContExpr -> IM Cont
-evalExpr (EVar _ ident) contExpr = do
-    env <- ask
-    store <- get
-    contExpr (getVal ident env store)
-
-evalExpr (ELitInt _ int) contExpr = contExpr (IntS int)
-evalExpr (ELitTrue _) contExpr = contExpr (BoolS True)
-evalExpr (ELitFalse _) contExpr = contExpr (BoolS False)
-evalExpr (EVoid _) contExpr = contExpr VoidS
-evalExpr (EApp _ funExpr argExprList) contExpr = evalExpr funExpr (functionContExpr argExprList contExpr)
-evalExpr (EGet _ arrExpr indexExpr) contExpr = undefined -- TODO
-evalExpr (EArray _ exprList) contExpr = undefined -- TODO
-evalExpr (EString _ str) contExpr = contExpr (StringS str)
-evalExpr (ELambda _ argList returnType instructionBlock) contExpr = do
-    env <- ask
-    contExpr (FunS (env, argList, returnType, instructionBlock))
-
-evalExpr (Neg _ expr) contExpr = evalExpr expr (\(IntS x) -> contExpr (IntS (-x)))
-evalExpr (Not _ expr) contExpr = evalExpr expr (\(BoolS b) -> contExpr (BoolS (not b)))
-evalExpr (EMul _ expr1 mulOp expr2) contExpr =
-    evalExpr expr1 (\x1 -> evalExpr expr2 (\x2 -> do
-        mulResult <- mulData x1 x2 mulOp
-        contExpr mulResult))
-
-evalExpr (EAdd _ expr1 addOp expr2) contExpr =
-    evalExpr expr1 (\(IntS x1) -> evalExpr expr2 (\(IntS x2) -> contExpr (addInt x1 x2 (getAddOperation addOp))))
-
-evalExpr (ERel _ expr1 relOp expr2) contExpr =
-    evalExpr expr1 (\(IntS x1) -> evalExpr expr2 (\(IntS x2) -> contExpr (relInt x1 x2 (getRelOperation relOp))))
-
-evalExpr (EAnd _ expr1 expr2) contExpr =
-    evalExpr expr1 (\(BoolS b1) -> evalExpr expr2 (\(BoolS b2) -> contExpr (BoolS (b1 && b2))))
-
-evalExpr (EOr _ expr1 expr2) contExpr =
-    evalExpr expr1 (\(BoolS b1) -> evalExpr expr2 (\(BoolS b2) -> contExpr (BoolS (b1 || b2))))
-
-
-
-evalStmt :: Stmt -> Cont -> IM Cont
-evalStmt (Empty _) cont = return cont
-evalStmt (Ret _ expr) cont = evalExpr expr functionReturn
-evalStmt (VRet _) cont = evalExpr (typeDefaultExpr $ Void BNFC'NoPosition) functionReturn
-evalStmt (SExp _ expr) cont = evalExpr expr (\_ -> return cont)
-evalStmt (SCond _ cond) cont = evalCond cond cont
-evalStmt (Ass _ (EVar _ ident) expr) cont = evalExpr expr (\newVal -> do
- {-   newStore <- updateVar ident newVal
-    let ans = cont newStore
-    let (FunctionAns a) = ans
-   -- throwError $ IE BNFC'NoPosition (IES $ show (a, newStore))
-    return (\s -> ans)
-    )
-    -}
-    newStore <- updateVar ident newVal
-   -- modify' (const newStore)
-    put newStore
-    env <- ask
-    store <- get
-  --  throwError $ IE BNFC'NoPosition (IES $ show (env, store, newStore))
-    return (\s -> cont newStore))
-
-
-
-
-
-evalCond :: Cond -> Cont -> IM Cont
-evalCond (If _ condExpr block) cont = evalExpr condExpr (\(BoolS b) -> if b then evalBlock block cont else return cont)
-evalCond (IfElse _ condExpr ifBlock elseBlock) cont = evalExpr condExpr (\(BoolS b) -> if b then evalBlock ifBlock cont else evalBlock elseBlock cont)
-evalCond (ElseIf _ condExpr block elseCond) cont = evalExpr condExpr (\(BoolS b) -> if b then evalBlock block cont else evalCond elseCond cont)
-
+interpretProgram :: Program -> IO (Either InterpreterError Ans)
+interpretProgram (ProgramL _ topDefList) =  (runReaderT $ runExceptT $ interpretTopDefProgram topDefList) initIEnv
 
 functionReturn :: ContExpr
-functionReturn d = do return (\_ -> FunctionAns d)
+functionReturn val store = return $ FunctionAns (val, store)
+
+mainExpr :: Expr
+mainExpr = EApp BNFC'NoPosition (EVar BNFC'NoPosition (Ident "main")) []
+
+mainCont :: Cont
+mainCont = evalExpr mainExpr functionReturn
+
+interpretTopDefProgram :: [TopDef] -> IM Ans
+interpretTopDefProgram defs = evalTopDefs defs mainCont initStore
+
+evalTopDefs :: [TopDef] -> Cont -> Store -> IM Ans
+evalTopDefs [] cont s = cont s
+evalTopDefs (def : restDefs) cont s = do
+    let envCont = \newEnv newStore -> local (const newEnv) (evalTopDefs restDefs cont newStore)
+    evalTopDef def envCont s
+
+evalTopDef :: TopDef -> ContEnv -> Store -> IM Ans
+evalTopDef (Global _ decl) envCont s = evalDecl decl envCont s
+evalTopDef (FnDef pos ident argList returnType block) envCont s = evalFuntionDef ident argList returnType block envCont s
+
+evalFuntionDef :: Ident -> [Arg] -> Type -> Block -> ContEnv -> Store -> IM Ans
+evalFuntionDef ident argList returnType block envCont s = do
+    env <- ask
+    let functionType = if elem ident printIdents then PrintFunS else FunS
+    let (newEnv, newStore) = declare ident (functionType (newEnv, argList, returnType, block)) env s
+    envCont newEnv newStore
+
+evalDecl :: Decl -> ContEnv -> Store -> IM Ans
+evalDecl (DeclL _ _ []) envCont s = do
+    env <- ask
+    envCont env s
+evalDecl (DeclL declPos typ ((NoInit initPos ident) : xs)) envCont s = evalDecl (DeclL declPos typ (Init initPos ident (typeDefaultExpr typ) : xs)) envCont s
+evalDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) envCont s = do
+    env <- ask
+    let exprCont = \val store -> let (newEnv, newStore) = declare ident val env store in do
+            local (const newEnv) (evalDecl (DeclL declPos typ xs) envCont newStore)
+    evalExpr expr exprCont s
+
+evalExpr :: Expr -> ContExpr -> Store -> IM Ans
+evalExpr (EVar _ ident) contExpr s = do
+    env <- ask
+    contExpr (getVal ident env s) s
+
+evalExpr (ELitInt _ int) contExpr s = contExpr (IntS int) s
+evalExpr (ELitTrue _) contExpr s = contExpr (BoolS True) s
+evalExpr (ELitFalse _) contExpr s = contExpr (BoolS False) s
+evalExpr (EVoid _) contExpr s = contExpr VoidS s
+evalExpr (EApp _ funExpr argExprList) contExpr s = evalExpr funExpr (functionContExpr argExprList contExpr) s
+evalExpr (EGet _ arrExpr indexExpr) contExpr s = undefined -- TODO
+evalExpr (EArray _ exprList) contExpr s = undefined -- TODO
+evalExpr (EString _ str) contExpr s = contExpr (StringS str) s
+evalExpr (ELambda _ argList returnType instructionBlock) contExpr s = do
+    env <- ask
+    contExpr (FunS (env, argList, returnType, instructionBlock)) s
+
+evalExpr (Neg _ expr) contExpr s = evalExpr expr (\(IntS x) -> contExpr (IntS (-x))) s
+evalExpr (Not _ expr) contExpr s = evalExpr expr (\(BoolS b) -> contExpr (BoolS (not b))) s
+evalExpr (EMul _ expr1 mulOp expr2) contExpr s =
+    evalExpr expr1 (\x1 store1 -> evalExpr expr2 (\x2 store2 -> do
+        mulResult <- mulData x1 x2 mulOp
+        contExpr mulResult store2) store1) s
+
+evalExpr (EAdd _ expr1 addOp expr2) contExpr s =
+    evalExpr expr1 (\(IntS x1) -> evalExpr expr2 (\(IntS x2) -> contExpr (addInt x1 x2 (getAddOperation addOp)))) s
+
+evalExpr (ERel _ expr1 relOp expr2) contExpr s =
+    evalExpr expr1 (\(IntS x1) -> evalExpr expr2 (\(IntS x2) -> contExpr (relInt x1 x2 (getRelOperation relOp)))) s
+
+evalExpr (EAnd _ expr1 expr2) contExpr s =
+    evalExpr expr1 (\(BoolS b1) -> evalExpr expr2 (\(BoolS b2) -> contExpr (BoolS (b1 && b2)))) s
+
+evalExpr (EOr _ expr1 expr2) contExpr s =
+    evalExpr expr1 (\(BoolS b1) -> evalExpr expr2 (\(BoolS b2) -> contExpr (BoolS (b1 || b2)))) s
 
 
-functionBlockReturn :: Block -> Type -> IM StoreData
-functionBlockReturn block t = do
-    defaultCont <- evalExpr (typeDefaultExpr t) functionReturn
-    functionCont <- evalBlock block defaultCont
-    store <- get
-    let (FunctionAns ans) = functionCont store
-    return ans
+evalStmt :: Stmt -> Cont -> Store -> IM Ans
+evalStmt (Empty _) cont s = cont s
+evalStmt (BStmt _ block) cont s = do
+    env <- ask
+    evalBlock block cont env s
+evalStmt (SDecl _ decl) cont s = evalDecl decl (\env store -> local (const env) (cont store)) s
+evalStmt (Ass _ (EVar _ ident) expr) cont s = evalExpr expr (\newVal store -> do
+    newStore <- updateVar ident newVal store
+    cont newStore) s
+evalStmt (Ass _ _ expr) cont s = undefined -- Never happens, typchecked before
+evalStmt (Incr p expr) cont s = evalStmt (Ass p expr (EAdd p expr (Plus p) (ELitInt p 1))) cont s
+evalStmt (Decr p expr) cont s = evalStmt (Ass p expr (EAdd p expr (Minus p) (ELitInt p 1))) cont s
+evalStmt (Ret _ expr) cont s = evalExpr expr functionReturn s
+evalStmt (VRet _) cont s = evalExpr (typeDefaultExpr $ Void BNFC'NoPosition) functionReturn s
+evalStmt (SCond _ cond) cont s = evalCond cond cont s
+evalStmt (While p condExpr block) cont s = evalExpr condExpr (\(BoolS b) store ->
+    if b then do
+        env <- ask
+        ans <- evalBlock block (evalStmt (While p condExpr block) cont) env store
+        case ans of
+            BreakAns newStore -> cont newStore
+            ContinueAns newStore -> evalStmt (While p condExpr block) cont newStore
+            _ -> return ans
+    else
+        cont store) s
+
+evalStmt (For p iteratorIdent startExpr endExpr block) cont s =
+    evalStmt (SDecl BNFC'NoPosition (forDecl iteratorIdent startExpr))
+    (evalExpr endExpr (\(IntS end) newStore -> evalStmt (While p (forCondExpr iteratorIdent end) (addToBlock block $ incrementIterator iteratorIdent)) cont newStore)) s
+
+evalStmt (LoopJmp _ loopJmp) cont s = return $ getLoopAns loopJmp s
+evalStmt (SExp _ expr) cont s = evalExpr expr (const cont) s
 
 
-evalBlock :: Block -> Cont -> IM Cont
-evalBlock (BlockL _ []) cont = return cont
-evalBlock (BlockL p (s1 : restS)) cont = do
-    restCont <- evalBlock (BlockL p restS) cont
-    evalStmt s1 restCont
+forDecl :: Ident -> Expr -> Decl
+forDecl ident expr = DeclL BNFC'NoPosition (Int BNFC'NoPosition) [Init BNFC'NoPosition ident (EAdd BNFC'NoPosition expr (Minus BNFC'NoPosition) (ELitInt BNFC'NoPosition 1))]
 
+forCondExpr :: Ident -> Integer -> Expr
+forCondExpr iterator end = ERel BNFC'NoPosition (EVar BNFC'NoPosition iterator) (LTH BNFC'NoPosition) (ELitInt BNFC'NoPosition end)
 
+incrementIterator :: Ident -> Stmt
+incrementIterator ident = Incr BNFC'NoPosition (EVar BNFC'NoPosition ident)
 
+addToBlock :: Block -> Stmt -> Block
+addToBlock (BlockL p stmts) stmt = BlockL p [stmt, BStmt p (BlockL p stmts)]
 
+getLoopAns :: LoopS -> Store -> Ans
+getLoopAns (Break _) = BreakAns
+getLoopAns (Cont _) = ContinueAns
+
+evalCond :: Cond -> Cont -> Store -> IM Ans
+evalCond (If _ condExpr block) cont s = evalExpr condExpr (\(BoolS b) store -> if b then do
+    env <- ask
+    evalBlock block cont env store
+    else cont store) s
+
+evalCond (IfElse _ condExpr ifBlock elseBlock) cont s = evalExpr condExpr (\(BoolS b) store -> do
+    env <- ask
+    if b then do
+    evalBlock ifBlock cont env store else evalBlock elseBlock cont env store) s
+
+evalCond (ElseIf _ condExpr block elseCond) cont s = evalExpr condExpr (\(BoolS b) store -> do
+    env <- ask
+    if b then evalBlock block cont env store else evalCond elseCond cont store) s
+
+functionBlockReturn :: Block -> Type -> Store -> IM Ans
+functionBlockReturn block t s = do
+    env <- ask
+    evalBlock block (evalExpr (typeDefaultExpr t) functionReturn) env s
+
+evalBlock :: Block -> Cont -> ContEnv
+evalBlock (BlockL _ []) cont env s = local (const env) (cont s)
+evalBlock (BlockL p (stmt : restStmt)) cont env s = do
+    localEnv <- ask
+    local (const localEnv) (evalStmt stmt (evalBlock (BlockL p restStmt) cont env) s)
 
 functionContExpr :: [Expr] -> ContExpr -> ContExpr -- Pattern match only for FunS, typechecked before
-functionContExpr [] contExpr (FunS (interpreterEnv, argList, returnType, block)) = do
-    functionReturn <- functionBlockReturn block returnType
-    contExpr functionReturn
+functionContExpr [] contExpr (FunS (interpreterEnv, argList, returnType, block)) s = do
+    FunctionAns (returnValue, newStore) <- local (const interpreterEnv) (functionBlockReturn block returnType s)
+    contExpr returnValue newStore
 
-functionContExpr (firstExpr : restExpr) contExpr (FunS (interpreterEnv, (ArgL _ _ argIdent) : restArgs, returnType, block)) = do
-    store <- get
-    let newExprCont = \exprVal -> let (newEnv, newStore) = declare argIdent exprVal interpreterEnv store in do
-            put newStore
-            local (const newEnv) (functionContExpr restExpr contExpr (FunS (interpreterEnv, restArgs, returnType, block)))
+functionContExpr (firstExpr : restExpr) contExpr (FunS (interpreterEnv, (ArgL _ _ argIdent) : restArgs, returnType, block)) s = do
+    let newExprCont = \exprVal store -> let (newEnv, newStore) = declare argIdent exprVal interpreterEnv store in do
+            functionContExpr restExpr contExpr (FunS (newEnv, restArgs, returnType, block)) newStore
+    evalExpr firstExpr newExprCont s
 
-    evalExpr firstExpr newExprCont
+functionContExpr [printExpr] contExpr (PrintFunS (interpreterEnv, [ArgL _ _ argIdent], returnType, block)) s = do
+    let newExprCont = \exprVal store -> do
+        liftIO $ putStr $ show exprVal
+        functionContExpr [] contExpr (FunS (interpreterEnv, [], returnType, block)) store
+    evalExpr printExpr newExprCont s
 
--- TODO Move to utils
+functionContExpr _ _ _ _ = undefined -- Never happens, typchecked before
 
 typeDefaultExpr :: Type -> Expr
 typeDefaultExpr (Int pos) = ELitInt pos 0
@@ -182,16 +196,11 @@ typeDefaultExpr (Void pos) = EVoid pos
 typeDefaultExpr (Arr pos arrType) = EArray pos []
 typeDefaultExpr (Fun pos typeList returnType) = ELambda pos (getPlaceholderArgs typeList) returnType (returnDefault returnType)
 
-naturals :: [Int]
-naturals = iterate (+1) 0
-getPlaceholderArgs :: [Type] -> [Arg]
-getPlaceholderArgs = zipWith (\ident t -> ArgL (hasPosition t) t (Ident $ show ident)) naturals
-
 returnDefault :: Type -> Block
 returnDefault returnType = BlockL BNFC'NoPosition [Ret BNFC'NoPosition (typeDefaultExpr returnType)]
 
-type RelOperation =  (Integer -> Integer -> Bool)
-type ArithemticOperation =  (Integer -> Integer -> Integer)
+type RelOperation = (Integer -> Integer -> Bool)
+type ArithemticOperation = (Integer -> Integer -> Integer)
 
 relInt :: Integer -> Integer -> RelOperation -> StoreData
 relInt x1 x2 operation = BoolS (operation x1 x2)
@@ -216,8 +225,6 @@ mulData (IntS x) (ArrayS map) (Times _) = do
     let replicated_elements = concat $ replicate (fromInteger x) elements
     let new_map = IntMap.fromDistinctAscList (zip naturals replicated_elements)
     return $ ArrayS new_map
-
-
 
 getRelOperation :: RelOp -> RelOperation
 getRelOperation (LTH _) = (<)

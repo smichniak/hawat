@@ -1,34 +1,28 @@
 module InterpreterEnv where
 
 import qualified Data.Map as Map
-import qualified Data.IntMap.Strict as IntMap -- TODO Remove strict?
-import Control.Monad.Except
-import Control.Monad.Reader
-import Control.Monad.State
+import qualified Data.IntMap as IntMap
+import Control.Monad.Except (ExceptT)
+import Control.Monad.Reader (MonadReader(ask), ReaderT)
+import Control.Monad.State ()
 
-import AbsHawat
-import InterpreterError
+import AbsHawat (Arg, Block, Ident(..), Type)
+import InterpreterError (InterpreterError)
 
 
 type Loc = Int
-data Ans = ProgramAns Store | FunctionAns StoreData
+data Ans = FunctionAns (StoreData, Store) | BreakAns Store | ContinueAns Store
 
-type Cont = Store -> Ans
-type ContExpr = StoreData -> IM Cont
-type ContEnv = InterpreterEnv -> IM Cont
-
-
-emptyProgramCont :: Cont
-emptyProgramCont = ProgramAns
+type Cont = Store -> IM Ans
+type ContExpr = StoreData -> Store -> IM Ans
+type ContEnv = InterpreterEnv -> Store -> IM Ans
 
 data Store = IStore {storeMap :: IntMap.IntMap StoreData,
                      nextLoc :: Loc
-                     } -- deriving (Eq, Ord, Show)
+                     }
 
 data StoreData = IntS Integer | BoolS Bool | StringS String | VoidS | ArrayS (IntMap.IntMap StoreData)
-  | FunS (InterpreterEnv, [Arg], Type, Block) -- | StoreArray [StoreData] -- Think about this type, maybe (Map Ident StoreData) -> StoreData
-  --  deriving (Eq, Ord, Show) -- TODO Kepp syntax of functions, not semantics
-
+  | FunS (InterpreterEnv, [Arg], Type, Block) | PrintFunS (InterpreterEnv, [Arg], Type, Block)
 
 instance Show StoreData where
     show (IntS i) = show i
@@ -37,23 +31,18 @@ instance Show StoreData where
     show VoidS = "void"
     show (ArrayS a) = show a
     show (FunS (_, argList, returnType, _)) = show argList ++ " " ++ show returnType
-
-
-instance Show Store where
-    show (IStore s l) = show s ++ " " ++ show l
+    show (PrintFunS (_, argList, returnType, _)) = show argList ++ " " ++ show returnType
 
 type InterpreterEnv = Map.Map Ident Loc
+
+type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv IO) a
 
 initIEnv :: InterpreterEnv
 initIEnv = Map.empty
 
 initStore :: Store
 initStore = IStore {storeMap = IntMap.empty,
-                    nextLoc = 0
-                    }
-
-type IM a = ExceptT InterpreterError (ReaderT InterpreterEnv (State Store)) a
-
+                    nextLoc = 0}
 
 declare :: Ident -> StoreData -> InterpreterEnv -> Store -> (InterpreterEnv, Store)
 declare ident value env store =
@@ -62,21 +51,13 @@ declare ident value env store =
         newStore = IStore (IntMap.insert loc value (storeMap store)) (loc + 1) in
     (newEnv, newStore)
 
-updateVar :: Ident -> StoreData -> IM Store
-updateVar ident newVal = do
+updateVar :: Ident -> StoreData -> Store -> IM Store
+updateVar ident newVal store = do
     env <- ask
-    --throwError $ IE BNFC'NoPosition (IES $ show env)
-    storeValMap <- gets storeMap
-    currentLoc <- gets nextLoc
     let (Ident s) = ident
     let (Just loc) = Map.lookup ident env
-    
-    let newMap = IntMap.insert loc newVal storeValMap
-    --throwError $ IE BNFC'NoPosition IEDivZero
-    -- throwError $ IE BNFC'NoPosition (IES $ show (env, store))
-    return $ IStore newMap currentLoc
-
-
+    let newMap = IntMap.insert loc newVal (storeMap store)
+    return $ IStore newMap (nextLoc store)
 
 getVal :: Ident -> InterpreterEnv -> Store -> StoreData
 getVal ident env store = storeMap store IntMap.! (env Map.! ident)

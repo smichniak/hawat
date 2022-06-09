@@ -1,0 +1,7 @@
+fun main () -> int {
+    for (i = 0 to 5) {
+        printInt(i); printStr("\n");
+    }
+
+    return 0;
+}

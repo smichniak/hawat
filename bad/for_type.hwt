@@ -1,0 +1,8 @@
+fun main () -> int {
+    [int] x = 5 * [0];
+
+    for (i = "it" to 4) {
+        x[i] = i * 5;
+    }
+    
+}

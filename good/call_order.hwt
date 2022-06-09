@@ -1,0 +1,19 @@
+int x = 1;
+
+fun f () -> int {
+    x = 2 * x;
+    return x;
+} 
+
+fun g () -> int {
+    x = 3 * x;
+    return x;
+}
+
+fun main () -> int {
+    int a = f() + g(); // f() == 2 * 1, g() == 3 * 2
+
+    printInt(a); printStr("\n");
+
+    return 0;
+}

@@ -1,0 +1,13 @@
+fun main () -> int {
+    int x = 0;
+    while (x < 5) {
+        printInt(x); printStr("\n");
+        x++;
+    }
+
+    while (false) {
+        printStr("This is never executed.\n");
+    }
+    
+    return 0;
+}

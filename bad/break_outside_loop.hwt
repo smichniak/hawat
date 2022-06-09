@@ -1,0 +1,5 @@
+fun main () -> int {
+    int x = 3;
+    break;
+    bool b = false;
+}

@@ -1,0 +1,12 @@
+fun main () -> int {
+    int x = 0;
+    while (true) {
+        printInt(x); printStr("\n");
+        x++;
+        if (x > 4) {
+            break;
+        }
+    }
+
+    return 0;
+}

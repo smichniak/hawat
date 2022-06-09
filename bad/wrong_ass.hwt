@@ -1,0 +1,6 @@
+fun main () -> int {
+    int x;
+    string y = 2 * x + 5; 
+
+    return 0;
+}

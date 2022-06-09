@@ -1,0 +1,8 @@
+fun main () -> int {
+    int x = 5, y = 10;
+    bool b = true;
+
+    int z = x + 10 + y * b; 
+
+    return 0;
+}

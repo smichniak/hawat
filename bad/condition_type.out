@@ -1,0 +1,1 @@
+Typechecker error at line 5, column 9. Condition must be bool, not int.

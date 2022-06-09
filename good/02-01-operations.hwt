@@ -1,0 +1,16 @@
+fun main () -> int {
+    printInt(2 + 2 * 3); printStr("\n");
+    printInt(2 / 3); printStr("\n");
+    printInt(20 - 42); printStr("\n");
+    printInt(8 % 3); printStr("\n");
+
+    printBool(true || false); printStr("\n");
+    printBool(true && false); printStr("\n");
+
+    printBool(2 < 3); printStr("\n");
+    printBool(2 < 2); printStr("\n");
+    printBool(2 <= 2); printStr("\n");
+    printBool(3 != 3); printStr("\n");
+
+    return 0;
+}

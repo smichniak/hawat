@@ -1,0 +1,1 @@
+Typechecker error at line 5, column 16. Wrong type returned, should be bool, not string.

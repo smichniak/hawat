@@ -1,0 +1,17 @@
+fun f (bool b, int x, string s) -> string {
+    if (b && x < 10) {
+        return s;
+    } else {
+        return "Other string";
+    }
+}
+
+
+fun main () -> int {
+    printStr(f(true, 2, "First string")); printStr("\n");
+    printStr(f(false, 2, "Second string")); printStr("\n");
+    printStr(f(true, 42, "Third string")); printStr("\n");
+    printStr(f(false, 69, "Fourth string")); printStr("\n");
+
+    return 0;
+}
