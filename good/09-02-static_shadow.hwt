@@ -1,0 +1,14 @@
+fun main () -> int {
+    int x = 2;
+    printInt(x); printStr("\n"); // 2
+    if (true) {
+        int x = 3;
+        printInt(x); printStr("\n"); // 3
+        x++;
+        printInt(x); printStr("\n"); // 4
+    }
+    
+    printInt(x); printStr("\n"); // 2
+
+    return 0;
+}

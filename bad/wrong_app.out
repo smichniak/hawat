@@ -1,0 +1,1 @@
+Typechecker error at line 12, column 16. Function expected types (int, bool), not (int, int).

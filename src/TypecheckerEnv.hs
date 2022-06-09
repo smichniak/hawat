@@ -2,15 +2,17 @@ module TypecheckerEnv where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Monad.Except
-import Control.Monad.Reader
+import Control.Monad.Except (when, unless, MonadError(throwError), ExceptT)
+import Control.Monad.Reader (asks, MonadReader(local, ask), Reader)
 
 import AbsHawat
 import TypecheckerError
 
-type DeclLevel = Integer
 
-data TypecheckEnv = TCEnv {tceTypeEnv      :: Map.Map Ident (Type, DeclLevel),
+type DeclLevel = Integer
+type TypeMap = Map.Map Ident (Type, DeclLevel)
+
+data TypecheckEnv = TCEnv {tceTypeEnv      :: TypeMap,
                            tceReadOnly     :: Set.Set Ident,
                            tceLevel        :: DeclLevel,
                            tceInLoop       :: Bool,
@@ -34,12 +36,20 @@ getType pos ident = do
         Nothing -> throwError $ TE pos (TEUndeclared ident)
         Just (t, _) -> return t
 
+
+retInsertEnv :: Ident -> Type -> DeclLevel -> TypeMap -> Set.Set Ident -> Bool -> Type -> TypecheckEnv
+retInsertEnv ident typ level typeEnv readEnv = TCEnv (Map.insert ident (typ, level) typeEnv) (Set.delete ident readEnv) level
+
 declare :: Ident -> Type -> TCM TypecheckEnv
-declare ident t = if ident == Ident "" then ask else do -- Igonore empty ident, declared Lambda
+declare (Ident "") t = ask -- Igonore empty ident, declared Lambda
+declare ident t = do
     (TCEnv typeEnv readEnv l loop ret) <- ask
-    case Map.lookup ident typeEnv of -- TODO Ugly
-        Just (_, level) -> if l == level then throwError $ makeError t (TERedeclaration ident) else return (TCEnv (Map.insert ident (t, l) typeEnv) (Set.delete ident readEnv) l loop ret)
-        Nothing -> return (TCEnv (Map.insert ident (t, l) typeEnv) (Set.delete ident readEnv) l loop ret)
+    case Map.lookup ident typeEnv of
+        Just (_, level) -> if l == level then
+                throwError $ makeError t (TERedeclaration ident)
+            else
+                return $ retInsertEnv ident t l typeEnv readEnv loop ret
+        Nothing -> return $ retInsertEnv ident t l typeEnv readEnv loop ret
 
 
 declareArgs :: [Arg] -> TCM TypecheckEnv

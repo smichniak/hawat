@@ -1,0 +1,8 @@
+fun main () -> int {
+    int x = 10;
+    for (i = 1 to x * 2) {
+        int y = 2 * i;
+        i = 2;
+    }
+
+}

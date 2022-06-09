@@ -1,0 +1,20 @@
+fun f (int x) -> string {
+    return "s";
+}
+
+fun g (bool b, string s) -> int {
+    if (b) {
+        return 2;
+    } else {
+        return 3;
+    }
+}
+
+fun f (int x, string s) -> bool {
+    return false;
+}
+
+fun main () -> int {
+
+    return 0;
+}

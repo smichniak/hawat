@@ -3,13 +3,14 @@
 
 module Typechecker where
 
-import Control.Monad.Except
-import Control.Monad.Reader
+import Control.Monad.Except (runExceptT, MonadError(throwError))
+import Control.Monad.Reader (unless, asks, runReader, MonadReader(ask, local))
 import Data.Data (Typeable, Data, toConstr)
 
 import AbsHawat
 import TypecheckerEnv
 import TypecheckerError
+
 
 maybeError :: Either TypeError TypecheckEnv -> Maybe TypeError
 maybeError (Left err) = Just err
@@ -40,7 +41,7 @@ typecheckDecl (DeclL declPos typ ((NoInit _ ident) : xs)) = do
 
 typecheckDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) = do
     newEnv <- declare ident typ
-    _ <- local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr)) -- Can be discarded, we only care if errors are thrown
+    local (const newEnv) (typecheckStmt (Ass initPos (EVar initPos ident) expr)) -- Can be discarded, we only care if errors are thrown
     local (const newEnv) (typecheckDecl $ DeclL declPos typ xs)
 
 getArgType :: Arg -> Type
@@ -86,7 +87,7 @@ typecheckStmt (Ass pos _ _) = throwError $ TE pos TEAssignExp
 typecheckStmt (Incr pos expr) = do
     exprType <- typecheckExpr expr
     case exprType of
-        Int _ -> typecheckStmt (Ass pos expr (ELitInt pos 0)) -- 0 only a placeholder, ignored later
+        Int _ -> typecheckStmt (Ass pos expr (ELitInt pos 1)) -- 1 only a placeholder, ignored later
         t -> throwError $ TE pos (TEUnaryOp t)
 typecheckStmt (Decr pos expr) = typecheckStmt (Incr pos expr)
 
@@ -158,7 +159,6 @@ typecheckExpr (ELambda pos argList returnType block) = do
     _ <- typecheckFunction pos (Ident "") argList returnType block
     return $ functionType pos argList returnType
 
--- TODO Typing empty array, add type 'Any' that compares with every other type
 typecheckExpr (EArray pos [expr]) = do
     exprType <- typecheckExpr expr
     return $ Arr pos exprType

@@ -1,0 +1,4 @@
+fun main (bool b) -> string {
+
+    return "s";
+}

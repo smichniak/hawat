@@ -1,0 +1,10 @@
+fun main () -> int {
+    int x = 5;
+    int y;
+
+    if (x) {
+        y = 3;
+    } else {
+        y = 2;
+    }
+}

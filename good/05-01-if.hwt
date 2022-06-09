@@ -1,0 +1,26 @@
+fun main () -> int {
+    if (true) {
+        printStr("True if statement.\n");
+    }
+    
+    if (2 > 3) {
+        printStr("False if statement.\n");
+    }
+
+    if (5 > 2) {
+        printStr("This will be printed.\n");
+    } else {
+        printStr("This won't.\n");
+    }
+
+
+    if (2 >= 2) {
+        printStr("First branch is reached.\n");
+    } else if (true) {
+        printStr("Second branch is not executed, even if the condition is true.\n");
+    } else {
+        printStr("This won't be printed.\n");
+    }
+
+    return 0;
+}

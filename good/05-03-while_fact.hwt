@@ -1,0 +1,21 @@
+fun factorial (int n) -> int {
+    int product = 1;
+    while (n > 0) {
+        product = product * n;
+        n--;
+    }
+    return product;
+}
+
+fun main () -> int {
+    printInt(factorial(0)); printStr("\n"); // 1
+    printInt(factorial(1)); printStr("\n"); // 1
+    printInt(factorial(2)); printStr("\n"); // 2
+    printInt(factorial(3)); printStr("\n"); // 6
+    printInt(factorial(4)); printStr("\n"); // 24 
+    printInt(factorial(5)); printStr("\n"); // 120
+
+    printInt(factorial(10)); printStr("\n"); // 3628800
+
+    return 0;
+}

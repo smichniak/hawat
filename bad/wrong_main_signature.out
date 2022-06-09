@@ -1,0 +1,1 @@
+Typechecker error at line 1, column 1. Function 'main' should have signature () -> int, not (bool) -> string.

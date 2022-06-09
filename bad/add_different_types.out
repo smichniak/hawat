@@ -1,0 +1,1 @@
+Typechecker error at line 5, column 22. Binary opeartion not supported for types int and bool.

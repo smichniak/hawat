@@ -1,0 +1,15 @@
+
+fun main () -> int {
+
+    (int, bool) -> string f = lambda(int x, bool b) -> string {
+        if (b && x > 3) {
+            return "a";
+        } else {
+            return "b";
+        }};
+
+
+    string s = f(2, 8);
+
+    return 0; 
+}

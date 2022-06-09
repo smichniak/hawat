@@ -1,0 +1,19 @@
+fun factorial (int n) -> int {
+    if (n <= 1) {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+
+
+fun main () -> int {
+    printInt(factorial(0)); printStr("\n"); // 1
+    printInt(factorial(1)); printStr("\n"); // 1
+    printInt(factorial(2)); printStr("\n"); // 2
+    printInt(factorial(3)); printStr("\n"); // 6
+    printInt(factorial(4)); printStr("\n"); // 24
+    printInt(factorial(5)); printStr("\n"); // 120
+
+    return 0;
+}

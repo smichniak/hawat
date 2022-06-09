@@ -1,0 +1,11 @@
+fun main () -> int {
+    int x, y;
+    bool b;
+    string s;
+    void v;
+
+    (int) -> int f;
+    () -> string g;
+
+    return 0;
+}

@@ -1,0 +1,10 @@
+fun zero () -> int {
+    return 0;
+}
+
+
+fun main () -> int {
+    int x = 2 / zero();
+
+    return 0;
+}

@@ -1,0 +1,30 @@
+int x = 42;
+
+fun g (int y) -> void {
+    int x;
+    y = 13;
+    x = 70;
+    printInt(y); printStr("\n"); // 13
+    printInt(x); printStr("\n"); // 70
+}
+
+fun f (int x) -> void {
+    printInt(x); printStr("\n");
+    x = 1337;
+    printInt(x); printStr("\n"); // 1337
+}
+
+fun main () -> int {
+    printInt(x); printStr("\n"); // 42
+
+    int x = 10;
+    printInt(x); printStr("\n"); // 10
+
+    f(3); // 3 \n 1337
+
+    g(x); // 13 \n 70
+
+    printInt(x); printStr("\n"); // 10
+
+    return 0;
+}

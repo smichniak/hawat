@@ -1,0 +1,6 @@
+fun main () -> int {
+    string s = "Hello World";
+    s++;
+
+    return 0;
+}

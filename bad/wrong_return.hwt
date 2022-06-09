@@ -1,0 +1,13 @@
+fun f (int x, int y) -> bool {
+    if (x * y > 5) {
+        return true;
+    } else {
+        return "s";
+    }
+
+
+}
+
+fun main () -> int {
+    return 0;
+}

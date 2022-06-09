@@ -1,0 +1,23 @@
+fun counter (int n) -> (int) -> int {
+    return lambda(int x) -> int {n = n + x; return n;};
+}
+
+
+fun main () -> int {
+    (int) -> int count1 = counter(0);
+    (int) -> int count2 = counter(100);
+
+    printInt(count1(0)); printStr("\n"); // 0
+    printInt(count2(0)); printStr("\n"); // 100
+
+    printInt(count1(2)); printStr("\n"); // 2
+    printInt(count1(3)); printStr("\n"); // 5
+
+    printInt(count2(10)); printStr("\n"); // 110
+
+    printInt(count1(42)); printStr("\n"); // 47
+    printInt(count2(42)); printStr("\n"); // 152
+
+
+    return 0;
+}
