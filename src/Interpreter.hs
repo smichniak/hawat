@@ -32,7 +32,7 @@ interpretTopDefProgram defs = evalTopDefs defs mainCont initStore
 evalTopDefs :: [TopDef] -> Cont -> Store -> IM Ans
 evalTopDefs [] cont s = cont s
 evalTopDefs (def : restDefs) cont s = do
-    let envCont = \newEnv newStore -> local (const newEnv) (evalTopDefs restDefs cont newStore)
+    let envCont newEnv newStore = local (const newEnv) (evalTopDefs restDefs cont newStore)
     evalTopDef def envCont s
 
 evalTopDef :: TopDef -> ContEnv -> Store -> IM Ans
@@ -42,7 +42,7 @@ evalTopDef (FnDef pos ident argList returnType block) envCont s = evalFuntionDef
 evalFuntionDef :: Ident -> [Arg] -> Type -> Block -> ContEnv -> Store -> IM Ans
 evalFuntionDef ident argList returnType block envCont s = do
     env <- ask
-    let functionType = if elem ident printIdents then PrintFunS else FunS
+    let functionType = if ident `elem` printIdents then PrintFunS else FunS
     let (newEnv, newStore) = declare ident (functionType (newEnv, argList, returnType, block)) env s
     envCont newEnv newStore
 
@@ -53,7 +53,7 @@ evalDecl (DeclL _ _ []) envCont s = do
 evalDecl (DeclL declPos typ ((NoInit initPos ident) : xs)) envCont s = evalDecl (DeclL declPos typ (Init initPos ident (typeDefaultExpr typ) : xs)) envCont s
 evalDecl (DeclL declPos typ ((Init initPos ident expr) : xs)) envCont s = do
     env <- ask
-    let exprCont = \val store -> let (newEnv, newStore) = declare ident val env store in do
+    let exprCont val store = let (newEnv, newStore) = declare ident val env store in do
             local (const newEnv) (evalDecl (DeclL declPos typ xs) envCont newStore)
     evalExpr expr exprCont s
 
@@ -152,8 +152,10 @@ evalCond (If _ condExpr block) cont s = evalExpr condExpr (\(BoolS b) store -> i
 
 evalCond (IfElse _ condExpr ifBlock elseBlock) cont s = evalExpr condExpr (\(BoolS b) store -> do
     env <- ask
-    if b then do
-    evalBlock ifBlock cont env store else evalBlock elseBlock cont env store) s
+    if b then
+      evalBlock ifBlock cont env store 
+    else 
+      evalBlock elseBlock cont env store) s
 
 evalCond (ElseIf _ condExpr block elseCond) cont s = evalExpr condExpr (\(BoolS b) store -> do
     env <- ask
@@ -176,14 +178,14 @@ functionContExpr [] contExpr (FunS (interpreterEnv, argList, returnType, block))
     contExpr returnValue newStore
 
 functionContExpr (firstExpr : restExpr) contExpr (FunS (interpreterEnv, (ArgL _ _ argIdent) : restArgs, returnType, block)) s = do
-    let newExprCont = \exprVal store -> let (newEnv, newStore) = declare argIdent exprVal interpreterEnv store in do
+    let newExprCont exprVal store = let (newEnv, newStore) = declare argIdent exprVal interpreterEnv store in do
             functionContExpr restExpr contExpr (FunS (newEnv, restArgs, returnType, block)) newStore
     evalExpr firstExpr newExprCont s
 
 functionContExpr [printExpr] contExpr (PrintFunS (interpreterEnv, [ArgL _ _ argIdent], returnType, block)) s = do
-    let newExprCont = \exprVal store -> do
-        liftIO $ putStr $ show exprVal
-        functionContExpr [] contExpr (FunS (interpreterEnv, [], returnType, block)) store
+    let newExprCont exprVal store = do
+            liftIO $ putStr $ show exprVal
+            functionContExpr [] contExpr (FunS (interpreterEnv, [], returnType, block)) store
     evalExpr printExpr newExprCont s
 
 functionContExpr _ _ _ _ = undefined -- Never happens, typchecked before

@@ -226,7 +226,7 @@ cartProd xs ys = [(x,y) | x <- xs, y <- ys]
 
 negTypes = [int]
 notTypes = [bool]
-timesTypes = [(int, int)] ++ (cartProd [int] arrays) ++ (cartProd arrays [int])
+timesTypes = [(int, int)] ++ cartProd [int] arrays ++ cartProd arrays [int]
 mulTypes = [(int, int)]
 addTypes = [(int, int)]
 relTypes = [(int, int)]

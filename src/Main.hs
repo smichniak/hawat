@@ -43,7 +43,7 @@ run p s =
                     programResult <- interpretProgram builtinsProgramTree
                     case programResult of
                         Left interpreterErr -> print interpreterErr
-                        Right (FunctionAns ((IntS mainReturn), _Store)) ->
+                        Right (FunctionAns (IntS mainReturn, _Store)) ->
                             exitWith $ exitType $ fromInteger mainReturn
 
 usage :: IO ()
