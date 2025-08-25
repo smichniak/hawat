@@ -1,6 +1,7 @@
 # Hawat Programming Language Interpreter
 
-An interpreter for the Hawat programming language, implemented in Haskell. Hawat is a statically-typed functional programming language that supports functions, lambdas, control flow, and basic data types.
+An interpreter for the Hawat programming language, implemented in Haskell. Hawat is a statically-typed imperative programming language that supports 
+functions, lambdas, control flow, and basic data types.
 
 ## About Hawat
 
